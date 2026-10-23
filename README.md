@@ -52,3 +52,4 @@ shared security and domain foundations first, then the public gateway and agent 
 agency workflows, paid exam passes, and SuperAdmin operations. Do not expose sensitive
 profile fields through public portfolio queries; add public-facing profile data in a separate
 RLS-protected surface.
+# AMS2
