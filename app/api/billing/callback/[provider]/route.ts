@@ -17,9 +17,10 @@ function verifySignature(payload: Record<string, any>, secret: string) {
 async function markPaid(order: any, transaction: string, request: Request) {
   let passCode: string | null = null;
   if (order.product === 'agency_basic' || order.product === 'agency_pro') {
-    const plan = order.product === 'agency_basic' ? 'basic' : 'pro';
-    const now = new Date(); const until = plan === 'basic' ? new Date(now.getFullYear(), now.getMonth() + 6, now.getDate()) : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-    const { error } = await admin.from('agency_subscriptions').update({ plan, status: 'active', period_started_at: now.toISOString(), period_ends_at: until.toISOString(), updated_at: now.toISOString() }).eq('agent_id', order.user_id);
+    const plan = order.package_code === 'agency_pro' ? 'pro' : 'basic';
+    const {data:pkg}=await admin.from('subscription_packages').select('duration_days').eq('code',order.package_code).maybeSingle();
+    const now = new Date(); const until = new Date(now.getTime()+Number(pkg?.duration_days||180)*86400000);
+    const { error } = await admin.from('agency_subscriptions').update({ plan, status: 'active', package_code:order.package_code, period_started_at: now.toISOString(), period_ends_at: until.toISOString(), updated_at: now.toISOString() }).eq('agent_id', order.user_id);
     if (error) throw error;
     const { error: profileError } = await admin.from('profiles').update({ membership: 'premium' }).eq('id', order.user_id);
     if (profileError) throw profileError;
@@ -29,11 +30,13 @@ async function markPaid(order: any, transaction: string, request: Request) {
     if (existingError) throw existingError;
     passCode = existing?.pass_code || `LWS-${randomBytes(8).toString('hex').toUpperCase()}`;
     if (!existing) {
+      const {data:pkg}=await admin.from('subscription_packages').select('duration_days').eq('code',order.package_code||'exam_pro_month').maybeSingle();
+      const expiresAt=new Date(Date.now()+Number(pkg?.duration_days||30)*86400000).toISOString();
       const claim = randomBytes(32).toString('hex');
       const { error } = await admin.from('exam_pass_orders').insert({ billing_order_id: order.id, name: meta.name, phone: meta.phone,
         amount: order.amount, currency: order.currency, payment_method: order.provider, receipt_reference: transaction,
         claim_token_hash: createHash('sha256').update(claim).digest('hex'), status: 'approved', pass_code: passCode,
-        reviewed_by: 'payment provider', reviewed_at: new Date().toISOString() });
+        package_code:order.package_code||'exam_pro_month',expires_at:expiresAt,reviewed_by: 'payment provider', reviewed_at: new Date().toISOString() });
       if (error) throw error;
     }
     order.metadata = { ...meta, pass_code: passCode };

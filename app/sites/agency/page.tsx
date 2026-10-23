@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { AuthCard } from '@/components/AuthCard';
 import { Btn, Card, cx } from '@/components/ui';
@@ -11,6 +11,7 @@ import { Profile } from '@/components/agency/Profile';
 import { PublicPortfolio } from '@/components/agency/PublicPortfolio';
 import { MfaGate } from '@/components/MfaGate';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 const TABS = [
   { k: 'leads', l: 'Leads' }, { k: 'plans', l: 'Plans and policies' },
@@ -20,18 +21,23 @@ const TABS = [
 export default function Agency() {
   const { session, profile, loading, signOut, reload } = useAuth();
   const [tab, setTab] = useState('leads');
+  const [subscription,setSubscription]=useState<any>(null);
+  useEffect(()=>{if(!profile?.id)return;supabase.from('agency_subscriptions').select('plan,status,trial_ends_at,period_ends_at').eq('agent_id',profile.id).maybeSingle().then(({data})=>setSubscription(data));},[profile?.id]);
 
   if (loading) return <Shell site="agency"><p className="p-10 text-center text-slate-500">Loading...</p></Shell>;
   if (!session) return <Shell site="agency"><AuthCard title="Agent portal" /></Shell>;
   if (!profile) return <Shell site="agency" right={<Btn variant="ghost" onClick={signOut}>Log out</Btn>}><p className="p-10 text-center text-slate-600">Setting up your profile. Refresh in a moment.</p></Shell>;
 
-  const premium = profile.membership === 'premium' || profile.role === 'admin';
+  const trialActive=subscription?.plan==='trial'&&subscription?.status==='trial'&&new Date(subscription.trial_ends_at).getTime()>Date.now();
+  const paidActive=subscription?.status==='active'&&subscription?.period_ends_at&&new Date(subscription.period_ends_at).getTime()>Date.now();
+  const premium = profile.membership === 'premium' || profile.role === 'admin' || trialActive || paidActive;
   const current = TABS.find((x) => x.k === tab)!;
   const locked = current.premium && !premium;
 
   return (
     <Shell site="agency" right={<div className="flex items-center gap-3"><span className="hidden text-sm font-medium sm:inline">{profile.name}</span><Btn variant="ghost" onClick={signOut}>Log out</Btn></div>}>
       <MfaGate><div className="mx-auto max-w-7xl px-4 py-6">
+        <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm shadow-sm"><span>{trialActive?`Free trial · ${Math.max(0,Math.ceil((new Date(subscription.trial_ends_at).getTime()-Date.now())/86400000))} day(s) left · maximum 5 policies`:subscription?.status==='active'?`Agency ${subscription.plan} · active through ${new Date(subscription.period_ends_at).toLocaleDateString()}`:'Agency access requires an active package.'}</span><a href="/billing" className="font-bold text-[#F15A24] underline">Subscription & Billing</a></div>
         <div className="mb-6 flex flex-wrap gap-2" role="tablist">
           {TABS.map((x) => (
             <button key={x.k} role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}

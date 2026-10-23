@@ -1,92 +1,33 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, Btn, Field } from '../ui';
+import { jsPDF } from 'jspdf';
 
-const CLAIM_KEY = 'lsw_exam_pass_claim';
-type Claim = { orderId: string; claimToken: string };
-export function PassPurchase({ onPassCode, onAvailability }: { onPassCode: (code: string) => void; onAvailability: (active: boolean, price: number, currency: string) => void }) {
-  const [settings, setSettings] = useState<any>(null);
-  const [claim, setClaim] = useState<Claim | null>(null);
-  const [order, setOrder] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', phone: '', paymentMethod: '', receiptReference: '' });
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [manual, setManual] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/exam/passes', { cache: 'no-store' }).then((r) => r.json()).then((data) => {
-      if (!alive) return;
-      setSettings(data);
-      onAvailability(!!data.active, Number(data.price || 0), data.currency || 'NPR');
-    }).catch(() => setMessage('Pass purchase is temporarily unavailable.'));
-    try {
-      const saved = sessionStorage.getItem(CLAIM_KEY);
-      if (saved) setClaim(JSON.parse(saved));
-    } catch {}
-    const passCode = new URLSearchParams(window.location.search).get('passCode');
-    if (passCode) { onPassCode(passCode); window.history.replaceState({}, '', window.location.pathname); setMessage('Payment verified. Your pass is ready.'); }
-    return () => { alive = false; };
-  }, [onAvailability]);
-  useEffect(() => {
-    if (!claim) return;
-    let alive = true;
-    fetch('/api/exam/passes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(claim) }).then((r) => r.json()).then((data) => { if (alive && data.order) setOrder(data.order); }).catch(() => {});
-    return () => { alive = false; };
-  }, [claim]);
-  async function submit(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setMessage('');
-    const response = await fetch('/api/exam/passes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-    const data = await response.json(); setBusy(false);
-    if (!response.ok) return setMessage(data.error || 'Could not submit this receipt.');
-    const next = { orderId: data.order.id, claimToken: data.claimToken };
-    try { sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next)); } catch {}
-    setClaim(next); setOrder(data.order); setMessage('Receipt submitted. An administrator will review it before issuing a pass.');
-  }
-  async function checkout(provider: 'esewa' | 'khalti') {
-    setBusy(true); setMessage('');
-    try {
-      const response = await fetch('/api/billing/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: 'exam_pass', provider, name: form.name, phone: form.phone }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Payment could not be started.');
-      if (provider === 'khalti') { window.location.assign(data.paymentUrl); return; }
-      const formEl = document.createElement('form'); formEl.method = 'POST'; formEl.action = data.action;
-      Object.entries(data.fields as Record<string,string>).forEach(([name,value]) => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; formEl.appendChild(input); });
-      document.body.appendChild(formEl); formEl.submit();
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Payment could not be started.'); setBusy(false); }
-  }
-  async function refresh() {
-    if (!claim) return;
-    setBusy(true); setMessage('');
-    const response = await fetch('/api/exam/passes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(claim) });
-    const data = await response.json(); setBusy(false);
-    if (!response.ok) return setMessage(data.error || 'Could not check this receipt.');
-    setOrder(data.order);
-    if (data.order.passCode) onPassCode(data.order.passCode);
-  }
-  if (!settings) return <Card className="p-5"><p className="text-sm text-slate-500">Loading pass details…</p></Card>;
-  if (!settings.active) return <Card className="p-5"><h2 className="font-bold">Exam access</h2><p className="mt-2 text-sm text-slate-600">Pass sales are not open yet. The exam is currently available without a pass.</p></Card>;
-  return <Card className="p-5">
-    <h2 className="text-lg font-bold">Exam pass · {settings.currency} {Number(settings.price).toLocaleString()}</h2>
-    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{settings.paymentInstructions}</p>
-    {claim ? <div className="mt-4 rounded-lg bg-slate-50 p-4">
-      <p className="font-semibold">Receipt status: {order?.status || 'checking'}</p>
-      {order?.status === 'approved' && order.passCode && <><p className="mt-2 text-sm">Your one-time pass code:</p><p className="my-2 select-all rounded bg-white p-2 font-mono font-bold">{order.passCode}</p><Btn onClick={() => onPassCode(order.passCode)}>Use this pass</Btn></>}
-      {order?.status === 'pending' && <p className="mt-1 text-sm text-slate-600">Your receipt is waiting for review.</p>}
-      {order?.status === 'rejected' && <p className="mt-1 text-sm text-red-700">This receipt was not approved. Contact support if you need help.</p>}
-      {order?.status === 'redeemed' && <p className="mt-1 text-sm text-slate-600">This pass has already been used.</p>}
-      <Btn variant="ghost" className="mt-3" disabled={busy} onClick={refresh}>Check receipt status</Btn>
-    </div> : <div className="mt-4 grid gap-3">
-      <Field label="Full name" required maxLength={100} value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
-      <Field label="Phone" required type="tel" value={form.phone} onChange={(e: any) => setForm({ ...form, phone: e.target.value })} />
-      <div className="flex flex-wrap gap-2"><Btn disabled={busy || form.name.trim().length < 2 || form.phone.replace(/\D/g, '').length < 7} onClick={() => checkout('esewa')}>{busy ? 'Opening payment…' : 'Pay with eSewa'}</Btn><Btn variant="ghost" disabled={busy || form.name.trim().length < 2 || form.phone.replace(/\D/g, '').length < 7} onClick={() => checkout('khalti')}>Pay with Khalti</Btn></div>
-      <button type="button" className="justify-self-start text-sm font-semibold text-brand underline" onClick={() => setManual(!manual)}>{manual ? 'Hide manual payment' : 'Or submit a manual payment receipt'}</button>
-      {manual && <form onSubmit={submit} className="grid gap-3 rounded-lg bg-slate-50 p-4">
-      <Field label="Payment method" required maxLength={40} placeholder="Wallet or bank" value={form.paymentMethod} onChange={(e: any) => setForm({ ...form, paymentMethod: e.target.value })} />
-      <Field label="Receipt / transaction reference" required maxLength={120} value={form.receiptReference} onChange={(e: any) => setForm({ ...form, receiptReference: e.target.value })} />
-      <Btn type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit receipt for review'}</Btn>
-      </form>}
-      {message && <p role="status" className="text-sm text-slate-600">{message}</p>}
-    </div>}
-    {message && claim && <p role="status" className="mt-3 text-sm text-slate-600">{message}</p>}
-  </Card>;
+const CLAIM_KEY = 'lws_exam_package_claim';
+const PAYMENTS = [
+  { code:'exam_weekly', name:'Weekly Pass', amount:99, days:7, detail:'Quick revision and unlimited mock practice.' },
+  { code:'exam_half_month', name:'Half-Month Pass', amount:199, days:15, detail:'Full question bank with bilingual support.' },
+  { code:'exam_pro_month', name:'Pro Monthly Pass', amount:250, days:30, detail:'Analytics, answer explanations and priority updates.', best:true },
+];
+type Claim = { orderId:string; claimToken:string };
+export function PassPurchase({ onPassCode, onAvailability }: { onPassCode:(code:string)=>void; onAvailability:(active:boolean,price:number,currency:string)=>void }) {
+  const [claim,setClaim]=useState<Claim|null>(null); const [order,setOrder]=useState<any>(null);
+  const [form,setForm]=useState({name:'',phone:'',packageCode:'exam_pro_month',provider:'fonepay'});
+  const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
+  const sync=useCallback(async (c:Claim)=>{ const r=await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}&claim=${encodeURIComponent(c.claimToken)}`,{cache:'no-store'}); const j=await r.json(); if(r.ok){setOrder(j.order);if(j.order.passCode)onPassCode(j.order.passCode);} },[onPassCode]);
+  useEffect(()=>{ fetch('/api/exam/passes',{cache:'no-store'}).then(r=>r.json()).then(j=>onAvailability(!!j.active,Number(j.price||250),j.currency||'NPR')).catch(()=>onAvailability(true,250,'NPR')); try { const c=sessionStorage.getItem(CLAIM_KEY); if(c){const parsed=JSON.parse(c);setClaim(parsed);void sync(parsed);} }catch{} },[onAvailability,sync]);
+  async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage('');const fd=new FormData();fd.set('packageCode',form.packageCode);fd.set('provider',form.provider);fd.set('name',form.name);fd.set('phone',form.phone);const input=document.querySelector<HTMLInputElement>('#exam-voucher');if(input?.files?.[0])fd.set('voucher',input.files[0]);else{setBusy(false);setMessage('Upload your payment voucher first.');return;}const r=await fetch('/api/billing/orders',{method:'POST',body:fd});const j=await r.json();setBusy(false);if(!r.ok){setMessage(j.error||'Could not submit payment.');return;}const next={orderId:j.order.id,claimToken:j.claimToken};sessionStorage.setItem(CLAIM_KEY,JSON.stringify(next));setClaim(next);setOrder(j.order);setMessage('Voucher submitted. Your pass activates after admin approval.');}
+  async function refresh(){if(!claim)return;setBusy(true);await sync(claim);setBusy(false);}
+  const selected=PAYMENTS.find(p=>p.code===form.packageCode)!;
+  return <section className="grid gap-4 md:col-span-2" aria-label="Exam practice pass packages">
+    <div className="grid gap-3 md:grid-cols-3">{PAYMENTS.map(p=><button type="button" key={p.code} onClick={()=>setForm({...form,packageCode:p.code})} className={`relative rounded-2xl border-2 bg-white p-4 text-left shadow-sm ${form.packageCode===p.code?'border-[#F15A24]':'border-slate-200'}`}>
+      {p.best&&<span className="absolute right-3 top-3 rounded-full bg-[#F15A24] px-2 py-1 text-xs font-bold text-white">Best value</span>}<h3 className="font-bold text-[#0A4F8A]">{p.name}</h3><p className="mt-1 text-2xl font-extrabold text-[#2D3748]">Rs {p.amount}</p><p className="text-xs text-slate-500">{p.days} days</p><p className="mt-2 text-sm text-slate-600">{p.detail}</p>
+    </button>)}</div>
+    <Card className="p-5"><h2 className="text-lg font-bold text-[#0A4F8A]">Activate {selected.name}</h2><p className="mt-1 text-sm text-slate-600">Scan either QR, then upload a screenshot or photo of the payment voucher. Admin approval activates access for {selected.days} days.</p>
+      {claim&&<div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"><b>Request: {order?.status||'checking'}</b>{order?.expiresAt&&<p>Valid until {new Date(order.expiresAt).toLocaleDateString()}</p>}{order?.passCode&&<><p>Your pass code: <b className="select-all font-mono">{order.passCode}</b></p><div className="mt-2 flex flex-wrap gap-2"><Btn variant="ghost" onClick={()=>{const pdf=new jsPDF();pdf.setTextColor('#0A4F8A');pdf.setFontSize(18);pdf.text('Learn With Sulav · Exam Pass Receipt',14,20);pdf.setTextColor('#2D3748');pdf.setFontSize(11);pdf.text(`Package: ${order.packageCode}`,14,34);pdf.text(`Amount paid: NPR ${order.amount}`,14,42);pdf.text(`Pass code: ${order.passCode}`,14,50);pdf.text(`Valid until: ${order.expiresAt||''}`,14,58);pdf.text(`Order reference: ${order.id}`,14,66);pdf.text('Powered by Learn With Sulav | Managed & Developed by Sulav Sapkota',14,82);pdf.save(`LWS-Exam-Receipt-${order.id}.pdf`);}}>Download payment receipt</Btn><a href="https://chat.whatsapp.com/IA5HndEQhscGMsMxnYi6uc" target="_blank" rel="noreferrer" className="rounded-lg border px-3 py-2">WhatsApp community</a><a href="https://www.facebook.com/share/1C2En4gvsg/" target="_blank" rel="noreferrer" className="rounded-lg border px-3 py-2">Facebook page</a></div></>}{order?.status==='pending'&&<p className="mt-1 text-slate-600">Your receipt is waiting for review.</p>}<Btn className="mt-2" variant="ghost" disabled={busy} onClick={refresh}>Refresh status</Btn></div>}
+      {!claim&&<form onSubmit={submit} className="mt-4 grid gap-3"><div className="grid gap-3 sm:grid-cols-2"><label className="rounded-lg border p-3 text-center text-sm"><input type="radio" name="provider" checked={form.provider==='fonepay'} onChange={()=>setForm({...form,provider:'fonepay'})}/> Fonepay{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/fonepay-qr.jpg" alt="Fonepay payment QR" className="mx-auto mt-2 h-48 w-full object-contain"/></label><label className="rounded-lg border p-3 text-center text-sm"><input type="radio" name="provider" checked={form.provider==='nepalpay'} onChange={()=>setForm({...form,provider:'nepalpay'})}/> NepalPay{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/nepalpay-qr.png" alt="NepalPay payment QR" className="mx-auto mt-2 h-48 w-full object-contain"/></label></div>
+        <Field label="Full name" required maxLength={100} value={form.name} onChange={(e:any)=>setForm({...form,name:e.target.value})}/><Field label="Phone" required type="tel" value={form.phone} onChange={(e:any)=>setForm({...form,phone:e.target.value})}/><label className="grid gap-1 text-sm font-medium">Payment voucher<input id="exam-voucher" type="file" accept="image/jpeg,image/png,image/webp" required className="rounded-lg border p-2"/></label><p className="text-xs text-slate-500">The uploaded image receives a Learn With Sulav watermark and is stored privately.</p><Btn type="submit" disabled={busy}>{busy?'Submitting…':`Submit voucher · Rs ${selected.amount}`}</Btn></form>}
+      {message&&<p role="status" className="mt-3 text-sm text-slate-600">{message}</p>}
+    </Card>
+  </section>;
 }

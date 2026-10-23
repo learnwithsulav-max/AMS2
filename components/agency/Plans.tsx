@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { PLANS, npr, planName, today, weightPct, weighted } from '@/lib/rules';
 import { Badge, Btn, Card, Field, Modal } from '../ui';
 import { jsPDF } from 'jspdf';
+import { PolicyDocuments } from './PolicyDocuments';
 
 export function Plans({ uid }: { uid: string }) {
   const [rows, setRows] = useState<any[]>([]);
@@ -11,6 +12,8 @@ export function Plans({ uid }: { uid: string }) {
   const [subscription, setSubscription] = useState<any>(null);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [message, setMessage] = useState('');
+  const [upgradePrompt, setUpgradePrompt] = useState(false);
+  const [documentPolicy, setDocumentPolicy] = useState<any>(null);
   const draftKey = `lws:policy-drafts:${uid}`;
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('policies').select('*').eq('agent_id', uid).order('issue_date', { ascending: false });
@@ -56,6 +59,10 @@ export function Plans({ uid }: { uid: string }) {
   }
   async function del(id: string) { if (confirm('Delete this policy?')) { await supabase.from('policies').delete().eq('id', id); load(); } }
   const currentYear = new Date().getFullYear();
+  const trialPlan = subscription?.plan === 'trial';
+  const trialEnds = new Date(subscription?.trial_ends_at || 0).getTime();
+  const trial = trialPlan && subscription?.status === 'trial' && trialEnds > Date.now();
+  const trialDays = trial ? Math.ceil((trialEnds - Date.now()) / 86400000) : 0;
   const yearPolicies = rows.filter((row) => new Date(`${row.issue_date}T00:00:00`).getFullYear() === currentYear);
   const upcoming = rows.filter((row) => row.collection_date && new Date(`${row.collection_date}T00:00:00`) >= new Date(new Date().toDateString()))
     .sort((a, b) => a.collection_date.localeCompare(b.collection_date)).slice(0, 8);
@@ -74,7 +81,7 @@ export function Plans({ uid }: { uid: string }) {
 
   return (
     <div className="grid gap-8">
-      {subscription && <Card className="flex flex-wrap items-center justify-between gap-4 p-4"><div><h2 className="font-bold">Agency plan: {subscription.plan === 'trial' ? '7 day trial' : subscription.plan === 'basic' ? 'Basic' : 'Pro'}</h2><p className="text-sm text-slate-600">{subscription.status === 'trial' ? `Up to 5 policies · ends ${new Date(subscription.trial_ends_at).toLocaleDateString()}` : `${subscription.status}${subscription.period_ends_at ? ` · through ${new Date(subscription.period_ends_at).toLocaleDateString()}` : ''}`}</p></div><div className="text-sm"><span className="font-semibold">{rows.length} policies</span>{drafts.length > 0 && <span className="ml-3 text-amber-700">{drafts.length} offline draft(s)</span>}</div></Card>}
+      {subscription && <Card className={`sticky top-2 z-20 flex flex-wrap items-center justify-between gap-4 p-4 ${trialPlan && (!trial || trialDays <= 2) ? 'border-orange-300 bg-orange-50' : ''}`}><div><h2 className="font-bold">Agency plan: {subscription.plan === 'trial' ? '7 day trial' : subscription.plan === 'basic' ? 'Basic' : 'Pro'}</h2><p className="text-sm text-slate-600">{trialPlan ? `Full dashboard · up to 5 policies · ${trial ? `ends ${new Date(subscription.trial_ends_at).toLocaleDateString()}` : 'trial expired'}` : `${subscription.status}${subscription.period_ends_at ? ` · through ${new Date(subscription.period_ends_at).toLocaleDateString()}` : ''}`}{trialPlan && (!trial || trialDays <= 2) ? ` · ${trial ? `${trialDays} day${trialDays===1?'':'s'} remaining` : 'upgrade to continue'}` : ''}</p></div><div className="flex items-center gap-3 text-sm"><span className="font-semibold">{rows.length}{trialPlan?'/5':''} policies</span>{drafts.length > 0 && <span className="text-amber-700">{drafts.length} offline draft(s)</span>}<a href="/billing" className="rounded-lg bg-[#F15A24] px-4 py-2 font-semibold text-white">Upgrade</a></div></Card>}
       {message && <p role="status" className="text-sm text-slate-700">{message}</p>}
       <Card className="flex flex-wrap items-center justify-between gap-4 p-4"><div><h2 className="font-bold">Commission tax summary · {currentYear}</h2><p className="text-sm text-slate-600">Gross {npr(yearPolicies.reduce((s,p) => s + Number(p.commission_gross || 0), 0))} · TDS {npr(yearPolicies.reduce((s,p) => s + Number(p.commission_tds || 0), 0))} · Net {npr(yearPolicies.reduce((s,p) => s + Number(p.commission_net || 0), 0))}</p></div><Btn variant="ghost" onClick={downloadTaxSummary}>Annual tax PDF</Btn></Card>
       <Card className="p-4"><h2 className="font-bold">Upcoming collections</h2>{upcoming.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{upcoming.map((row) => <p key={row.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><span className="font-semibold">{row.collection_date}</span> · {row.client_name} · {row.family_group || 'Individual'} · {npr(row.premium)}</p>)}</div> : <p className="mt-2 text-sm text-slate-600">Add collection dates to policies to track monthly collections.</p>}</Card>
@@ -93,12 +100,12 @@ export function Plans({ uid }: { uid: string }) {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-bold">My policies</h2>
-          <Btn onClick={() => setForm({ plan_type: 'endowment', premium_mode: 'regular', term_years: 15, issue_date: today() })}>Add policy</Btn>
+          <Btn onClick={() => trialPlan && (!trial || rows.length + drafts.length >= 5) ? setUpgradePrompt(true) : setForm({ plan_type: 'endowment', premium_mode: 'regular', term_years: 15, issue_date: today() })}>Add policy</Btn>
         </div>
         <Card className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-600"><tr>
-              {['Client', 'Family', 'Company', 'Plan', 'Mode', 'Term', 'Premium', 'Counts', 'Weighted', 'Issued', 'Collection', 'Net commission', 'Next due', ''].map((h) => <th key={h} className="px-3 py-2 font-semibold">{h}</th>)}
+              {['Client', 'Family', 'Company', 'Plan', 'Mode', 'Term', 'Premium', 'Counts', 'Weighted', 'Issued', 'Collection', 'Net commission', 'Next due', 'Documents', ''].map((h) => <th key={h} className="px-3 py-2 font-semibold">{h}</th>)}
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -108,7 +115,7 @@ export function Plans({ uid }: { uid: string }) {
                   <td className="px-3 py-2">{npr(r.premium)}</td><td className="px-3 py-2">{weightPct(r.premium_mode, r.term_years) * 100}%</td>
                   <td className="px-3 py-2 font-semibold">{npr(weighted(r))}</td><td className="px-3 py-2">{r.issue_date}</td>
                   <td className="px-3 py-2">{r.collection_date || '-'}</td><td className="px-3 py-2">{npr(r.commission_net || 0)}</td><td className="px-3 py-2">{r.next_due_date || '-'}</td>
-                  <td className="px-3 py-2"><button className="text-red-600" onClick={() => del(r.id)}>Delete</button></td>
+                  <td className="px-3 py-2"><button className="font-semibold text-[#0A4F8A] underline" onClick={() => setDocumentPolicy(r)}>Vault</button></td><td className="px-3 py-2"><button className="text-red-600" onClick={() => del(r.id)}>Delete</button></td>
                 </tr>
               ))}
               {!rows.length && <tr><td colSpan={14} className="px-3 py-8 text-center text-slate-500">No policies yet. Add your first policy to see weighted premium.</td></tr>}
@@ -143,6 +150,8 @@ export function Plans({ uid }: { uid: string }) {
           </form>
         </Modal>
       )}
+      {upgradePrompt && <Modal title="Choose an agency pass" onClose={() => setUpgradePrompt(false)}><p className="text-sm text-slate-600">The free trial supports up to five policies. Choose Agent Basic for Rs 499 / 180 days or Agent Pro for Rs 899 / 365 days to add more.</p><a href="/billing" className="mt-4 inline-flex rounded-lg bg-[#F15A24] px-4 py-2.5 text-sm font-semibold text-white">View subscription packages</a></Modal>}
+      {documentPolicy && <Modal title={`Policy documents · ${documentPolicy.client_name}`} onClose={() => setDocumentPolicy(null)}><PolicyDocuments policyId={documentPolicy.id}/></Modal>}
     </div>
   );
 }

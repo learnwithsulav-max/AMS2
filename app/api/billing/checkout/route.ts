@@ -10,6 +10,7 @@ const money = (value: number) => value.toFixed(2);
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const product = body.product;
+  const packageCode = typeof body.packageCode === 'string' ? body.packageCode : (product === 'exam_pass' ? 'exam_pro_month' : product);
   const provider = body.provider;
   if (!['agency_basic','agency_pro','exam_pass'].includes(product) || !['esewa','khalti'].includes(provider)) return NextResponse.json({ error: 'Choose an available plan and payment provider.' }, { status: 400 });
 
@@ -23,20 +24,16 @@ export async function POST(request: Request) {
     const auth = await requirePortalUser(request, true); if (auth.response) return auth.response; user = auth.user;
   }
 
-  let amount = product === 'agency_basic' ? 499 : product === 'agency_pro' ? 899 : 0;
-  let currency = 'NPR';
-  if (product === 'exam_pass') {
-    const { data: setting, error } = await admin.from('exam_pass_settings').select('price,currency,active').eq('id', true).maybeSingle();
-    if (error || !setting?.active || Number(setting.price) <= 0) return NextResponse.json({ error: 'Exam pass sales are not available right now.' }, { status: 503 });
-    amount = Number(setting.price); currency = setting.currency;
-  }
+  const { data: pkg, error: packageError } = await admin.from('subscription_packages').select('code,audience,amount_npr,duration_days,active').eq('code',packageCode).eq('active',true).maybeSingle();
+  if(packageError||!pkg||pkg.amount_npr<=0||pkg.audience!==(product==='exam_pass'?'exam':'agency'))return NextResponse.json({error:'This package is unavailable.'},{status:400});
+  const amount=Number(pkg.amount_npr); const currency='NPR';
 
   const esewaReady = !!(process.env.ESEWA_PRODUCT_CODE && process.env.ESEWA_SECRET_KEY);
   const khaltiReady = !!process.env.KHALTI_SECRET_KEY;
   if (provider === 'esewa' && !esewaReady || provider === 'khalti' && !khaltiReady) return NextResponse.json({ error: `${provider === 'esewa' ? 'eSewa' : 'Khalti'} checkout is not configured yet.` }, { status: 503 });
 
   const { data: order, error: insertError } = await admin.from('billing_orders').insert({
-    user_id: user?.id || null, product, provider, amount, currency, metadata: { ...(guestName ? { name: guestName, phone: guestPhone } : {}) },
+    user_id: user?.id || null, product: product==='exam_pass'?'exam_pass':packageCode, package_code:packageCode, provider, amount, currency, metadata: { ...(guestName ? { name: guestName, phone: guestPhone } : {}), duration_days:pkg.duration_days },
   }).select('id').single();
   if (insertError || !order) return NextResponse.json({ error: 'Could not create the payment request.' }, { status: 500 });
   const callback = `${siteUrl('root')}/api/billing/callback/${provider}?order_id=${encodeURIComponent(order.id)}`;

@@ -54,10 +54,10 @@ export async function POST(req: Request) {
   if (paidPassRequired) {
     const passCode = typeof body.passCode === 'string' ? body.passCode.trim().toUpperCase() : '';
     if (!/^LWS-[A-F0-9]{16}$/.test(passCode)) return NextResponse.json({ error: 'Enter a valid exam pass code.' }, { status: 400 });
-    const { data, error } = await admin.from('exam_pass_orders').select('id,name,phone')
+    const { data, error } = await admin.from('exam_pass_orders').select('id,name,phone,expires_at')
       .eq('pass_code', passCode).eq('status', 'approved').maybeSingle();
     if (error) return NextResponse.json({ error: 'Could not verify the exam pass.' }, { status: 500 });
-    if (!data) return NextResponse.json({ error: 'This exam pass is invalid, already used, or has not been approved.' }, { status: 403 });
+    if (!data || !data.expires_at || new Date(data.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: 'This exam pass is invalid, expired, or has not been approved.' }, { status: 403 });
     pass = data;
     name = data.name;
     phone = data.phone;
@@ -78,16 +78,9 @@ export async function POST(req: Request) {
 
   const now = Date.now();
   const endsAt = new Date(now + EXAM.minutes * 60000).toISOString();
-  if (pass) {
-    const { data: reserved, error: reserveError } = await admin.from('exam_pass_orders')
-      .update({ status: 'redeemed' }).eq('id', pass.id).eq('status', 'approved').select('id').maybeSingle();
-    if (reserveError) return NextResponse.json({ error: 'Could not reserve this exam pass. Please try again.' }, { status: 500 });
-    if (!reserved) return NextResponse.json({ error: 'This exam pass has already been used.' }, { status: 409 });
-  }
   const attemptRow = { name, phone, question_ids: picked.map((q) => q.id), ends_at: endsAt, ...(pass ? { pass_order_id: pass.id } : {}) };
   const { data, error } = await admin.from('exam_attempts').insert(attemptRow).select('id').single();
   if (error || !data) {
-    if (pass) await admin.from('exam_pass_orders').update({ status: 'approved' }).eq('id', pass.id).eq('status', 'redeemed');
     return NextResponse.json({ error: 'Could not start the exam. Try again in a moment.' }, { status: 500 });
   }
   // Options are shuffled per attempt, so the position of the right answer varies.

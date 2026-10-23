@@ -116,6 +116,42 @@ export async function POST(request: Request) {
     action = decision === 'approve' ? 'exam_pass_approved' : 'exam_pass_rejected';
     targetId = id;
     meta = { decision };
+  } else if (body.action === 'review_billing_order') {
+    const { id, decision } = body;
+    if (typeof id !== 'string' || !['approve','reject'].includes(decision)) return NextResponse.json({error:'Choose a pending payment and a valid decision.'},{status:400});
+    const { data: order, error: orderError } = await admin.from('billing_orders').select('id,user_id,package_code,product,provider,amount,currency,metadata,status').eq('id',id).eq('status','pending').maybeSingle();
+    if (orderError || !order) return NextResponse.json({error:'This payment is no longer pending.'},{status:404});
+    const { data: pkg } = await admin.from('subscription_packages').select('duration_days').eq('code',order.package_code).maybeSingle();
+    if (decision === 'approve' && !pkg) return NextResponse.json({error:'The selected package no longer exists.'},{status:409});
+    const now = new Date(); const expiresAt = new Date(now.getTime() + Number(pkg?.duration_days || 0) * 86400000).toISOString();
+    if (decision === 'approve' && order.product === 'exam_pass') {
+      const passCode = `LWS-${randomBytes(8).toString('hex').toUpperCase()}`;
+      const { error } = await admin.from('exam_pass_orders').insert({
+        name: order.metadata?.name || 'Student', phone: order.metadata?.phone || '', amount: order.amount, currency: order.currency,
+        payment_method: order.provider, receipt_reference: `Manual QR payment ${order.id}`, status:'approved', pass_code:passCode,
+        billing_order_id:order.id, package_code:order.package_code, expires_at:expiresAt,
+        reviewed_by:user.email || user.id, reviewed_at:now.toISOString(),
+      });
+      if (error) { console.error('Timed exam pass activation failed:',error.message); return NextResponse.json({error:'Payment is verified, but pass activation failed. Retry review.'},{status:500}); }
+    } else if (decision === 'approve') {
+      const { data: subscription } = await admin.from('agency_subscriptions').select('id,agent_id,period_ends_at').eq('agent_id',order.user_id).maybeSingle();
+      if (!subscription) return NextResponse.json({error:'Agency subscription record was not found.'},{status:409});
+      const start = subscription.period_ends_at && new Date(subscription.period_ends_at) > now ? new Date(subscription.period_ends_at) : now;
+      const end = new Date(start.getTime() + Number(pkg!.duration_days) * 86400000);
+      const plan = order.package_code === 'agency_pro' ? 'pro' : 'basic';
+      const { error } = await admin.from('agency_subscriptions').update({plan,status:'active',package_code:order.package_code,period_started_at:start.toISOString(),period_ends_at:end.toISOString(),updated_at:now.toISOString()}).eq('id',subscription.id);
+      if (error) return NextResponse.json({error:'Could not activate the agency subscription.'},{status:500});
+      await admin.from('profiles').update({membership:'premium'}).eq('id',subscription.agent_id);
+    }
+    const { data, error } = await admin.from('billing_orders').update({status:decision==='approve'?'paid':'rejected',expires_at:decision==='approve'?expiresAt:null,reviewed_by:user.id,reviewed_at:now.toISOString()}).eq('id',id).eq('status','pending').select('id').maybeSingle();
+    result={data,error}; action=decision==='approve'?'billing_order_approved':'billing_order_rejected'; targetId=id; meta={decision,package_code:order.package_code,amount:order.amount};
+    if(data&&decision==='approve'){
+      const links='WhatsApp community: https://chat.whatsapp.com/IA5HndEQhscGMsMxnYi6uc · Facebook: https://www.facebook.com/share/1C2En4gvsg/';
+      const recipients:{channel:string;recipient:string;subject:string|null}[]=[];
+      if(order.user_id){const {data:profile}=await admin.from('profiles').select('email,phone').eq('id',order.user_id).maybeSingle();if(profile?.email)recipients.push({channel:'email',recipient:profile.email,subject:'Learn With Sulav subscription activated'});if(profile?.phone)recipients.push({channel:'sms',recipient:profile.phone,subject:null});}
+      else {const phone=String(order.metadata?.phone||'');if(phone)recipients.push({channel:'sms',recipient:phone,subject:null});}
+      for(const recipient of recipients)await admin.from('notification_outbox').insert({dedupe_key:`welcome:${id}`,channel:recipient.channel,recipient:recipient.recipient,subject:recipient.subject,message:`Your ${order.package_code} is active until ${expiresAt.slice(0,10)}. Amount paid: NPR ${order.amount}. ${links}`}).then(()=>{});
+    }
   } else if (body.action === 'update_subscription') {
     const { id, plan, status } = body;
     if (typeof id !== 'string' || !['trial','basic','pro'].includes(plan) || !['trial','active','expired','cancelled'].includes(status) || (status === 'active' && plan === 'trial')) {

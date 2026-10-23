@@ -14,9 +14,9 @@ import { DataPager, DataTable } from './DataTable';
 import { QuestionImporter } from './QuestionImporter';
 import { MaskedPhone, maskPhone } from '@/components/MaskedPhone';
 
-const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
+const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'billing_orders', 'question_reports', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
-const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Exam passes', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
+const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Question reports', 'Exam passes', 'Billing queue', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
 
 export default function AdminApp() {
   const { session, profile, loading, signOut } = useAuth();
@@ -140,6 +140,10 @@ function Dashboard() {
       )}
 
       {tab === 'Exam passes' && <ExamPassAdmin settings={(d.exam_pass_settings || [])[0]} orders={d.exam_pass_orders || []} mutate={mutate} onRefresh={load} />}
+      {tab === 'Billing queue' && <BillingQueue orders={d.billing_orders || []} mutate={mutate} />}
+      {tab === 'Question reports' && <DataTable name="question-reports" rows={d.question_reports || []} page={pages.question_reports || 1} total={counts.question_reports || 0} pageSize={PAGE_SIZE} onPageChange={(page)=>changePage('question_reports',page)} cols={[
+        {k:'question_id',h:'Question ID'},{k:'report_type',h:'Issue'},{k:'details',h:'Details'},{k:'attempt_id',h:'Attempt'},{k:'created_at',h:'Reported',render:(r)=>r.created_at?.slice(0,16).replace('T',' ')},
+      ]} />}
 
       {tab === 'Subscriptions' && <DataTable name="agency-subscriptions" rows={d.agency_subscriptions || []} page={pages.agency_subscriptions || 1} total={counts.agency_subscriptions || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('agency_subscriptions', page)} cols={[
@@ -204,6 +208,12 @@ function Dashboard() {
       ]} />}
     </div>
   );
+}
+
+function BillingQueue({orders,mutate}:{orders:any[];mutate:(payload:Record<string,unknown>)=>Promise<boolean>}) {
+  const [error,setError]=useState('');
+  async function openVoucher(id:string){try{const r=await adminGet<{url:string}>(`/api/admin/billing/${id}/voucher`);window.open(r.url,'_blank','noopener,noreferrer');}catch(e){setError(e instanceof Error?e.message:'Could not open voucher.');}}
+  return <div className="grid gap-3"><h2 className="text-lg font-bold">Manual QR payment reviews</h2>{error&&<p role="alert" className="text-sm text-red-700">{error}</p>}{orders.length===0&&<Card className="p-5 text-sm">No payments submitted.</Card>}{orders.map(o=><Card key={o.id} className="grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto]"><div><b>{o.package_code||o.product}</b><p className="text-sm text-slate-600">NPR {Number(o.amount).toLocaleString()} · {o.provider}</p><p className="text-xs text-slate-500">{o.metadata?.name||o.user_id||'Student'} · {o.metadata?.phone?<MaskedPhone value={o.metadata.phone}/>:''}</p></div><div><p className="text-sm">{o.status} · {new Date(o.created_at).toLocaleString()}</p><Btn variant="ghost" className="mt-2" onClick={()=>openVoucher(o.id)}>View watermarked voucher</Btn></div>{o.status==='pending'?<div className="flex items-center gap-2"><Btn onClick={()=>mutate({action:'review_billing_order',id:o.id,decision:'approve'})}>Approve</Btn><Btn variant="ghost" onClick={()=>mutate({action:'review_billing_order',id:o.id,decision:'reject'})}>Reject</Btn></div>:<span className="text-sm text-slate-500">Reviewed {o.reviewed_at?.slice(0,10)||''}</span>}</Card>)}</div>;
 }
 
 function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any; orders: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean>; onRefresh: () => Promise<void> }) {

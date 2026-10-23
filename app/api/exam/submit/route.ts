@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({
-    name: at.name, score, max, correct, wrong: review.length - correct - skipped, skipped, passed, expired,
+    attemptId, name: at.name, score, max, correct, wrong: review.length - correct - skipped, skipped, passed, expired,
     certId: passed ? cert : null, issuedAt: new Date().toISOString(), review,
   });
 }

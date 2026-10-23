@@ -193,6 +193,7 @@ export default function ExamApp() {
 
 function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake: () => void }) {
   const [url, setUrl] = useState('');
+  const [reported, setReported] = useState<number[]>([]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
     if (!r.passed) return;
@@ -246,6 +247,7 @@ function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake
               <p className="font-semibold">{i + 1}. {x.q}</p>
               <p className="mt-2 text-sm">Your answer: <b className={x.ok ? 'text-emerald-700' : 'text-red-700'}>{x.chosen || 'Not answered'}</b></p>
               {!x.ok && <p className="text-sm">Correct answer: <b className="text-emerald-700">{x.right}</b></p>}
+              <ReportQuestion attemptId={r.attemptId} questionId={x.id} done={reported.includes(x.id)} onDone={() => setReported((ids)=>[...ids,x.id])}/>
             </Card>
           ))}
         </div>
@@ -253,3 +255,5 @@ function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake
     </div>
   );
 }
+
+function ReportQuestion({attemptId,questionId,done,onDone}:{attemptId:string;questionId:number;done:boolean;onDone:()=>void}){const [open,setOpen]=useState(false);const [kind,setKind]=useState('wrong_answer');const [details,setDetails]=useState('');const [error,setError]=useState('');async function send(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/exam/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attemptId,questionId,reportType:kind,details})});const j=await r.json();if(!r.ok){setError(j.error||'Could not send report.');return;}onDone();setOpen(false);}return <div className="mt-3">{done?<span className="text-xs text-emerald-700">Report received</span>:!open?<button className="text-xs font-semibold text-[#0A4F8A] underline" onClick={()=>setOpen(true)}>Report question</button>:<form onSubmit={send} className="grid gap-2 sm:grid-cols-[auto_1fr_auto]"><select value={kind} onChange={e=>setKind(e.target.value)} className="rounded border px-2 py-1 text-sm"><option value="wrong_answer">Wrong answer</option><option value="unclear">Unclear question</option><option value="translation">Translation issue</option><option value="other">Other</option></select><input value={details} onChange={e=>setDetails(e.target.value)} maxLength={1000} placeholder="Optional details" className="rounded border px-2 py-1 text-sm"/><Btn type="submit">Send</Btn>{error&&<p className="text-xs text-red-700 sm:col-span-3">{error}</p>}</form>}</div>}
