@@ -275,7 +275,7 @@ function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any;
 function Configuration({ companies, coupons, mutate }: { companies: any[]; coupons: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean> }) {
   const [company, setCompany] = useState(''); const [tds, setTds] = useState('20');
   const [tdi, setTdi] = useState('{"A":100,"B":4,"C":2,"D":1}'); const [bdi, setBdi] = useState('{"A":100,"B":4,"C":2,"D":1}');
-  const [code, setCode] = useState(''); const [discount, setDiscount] = useState(''); const [until, setUntil] = useState('');
+  const [code, setCode] = useState(''); const [discount, setDiscount] = useState(''); const [from, setFrom] = useState(''); const [until, setUntil] = useState(''); const [maxUses,setMaxUses]=useState('');
   const [error, setError] = useState('');
   return <div className="grid gap-6 lg:grid-cols-2">
     <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Company tax rules</h2><p className="mt-1 text-sm text-slate-600">TDS is applied to the gross commission when a policy is saved.</p></div>
@@ -291,13 +291,15 @@ function Configuration({ companies, coupons, mutate }: { companies: any[]; coupo
       <DataTable name="company-rules" rows={companies} cols={[{ k: 'company', h: 'Company' }, { k: 'tds_rate', h: 'TDS %' }, { k: 'updated_at', h: 'Updated', render: (r) => r.updated_at?.slice(0, 10) }]} />
     </Card>
     <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Coupon codes</h2><p className="mt-1 text-sm text-slate-600">Coupons are stored for subscription and checkout validation.</p></div>
-      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); if (await mutate({ action: 'create_coupon', code, discount_percent: Number(discount), valid_until: until || null })) { setCode(''); setDiscount(''); setUntil(''); } }}>
+      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); if (await mutate({ action: 'create_coupon', code, discount_percent: Number(discount), valid_from: from || null, valid_until: until || null, max_redemptions:maxUses||null })) { setCode(''); setDiscount(''); setFrom(''); setUntil(''); setMaxUses(''); } }}>
         <Field label="Code" required value={code} onChange={(e: any) => setCode(e.target.value.toUpperCase())} />
-        <Field label="Discount (%)" type="number" min="1" max="100" required value={discount} onChange={(e: any) => setDiscount(e.target.value)} />
+        <Field label="Discount (%)" type="number" min="0.01" max="99.99" step="0.01" required value={discount} onChange={(e: any) => setDiscount(e.target.value)} />
+        <Field label="Starts (optional)" type="date" value={from} onChange={(e: any) => setFrom(e.target.value)} />
         <Field label="Expires (optional)" type="date" value={until} onChange={(e: any) => setUntil(e.target.value)} />
+        <Field label="Maximum redemptions (optional)" type="number" min="1" step="1" value={maxUses} onChange={(e:any)=>setMaxUses(e.target.value)} />
         <Btn type="submit">Create coupon</Btn>
       </form>
-      <DataTable name="coupons" rows={coupons} cols={[{ k: 'code', h: 'Code' }, { k: 'discount_percent', h: 'Discount %' }, { k: 'redemption_count', h: 'Used' }, { k: 'valid_until', h: 'Expires', render: (r) => r.valid_until?.slice(0, 10) || 'Never' }]} />
+      <DataTable name="coupons" rows={coupons} cols={[{ k: 'code', h: 'Code' }, { k: 'discount_percent', h: 'Discount %' }, { k: 'redemption_count', h: 'Used', render:(r)=>`${r.redemption_count}${r.max_redemptions?` / ${r.max_redemptions}`:''}` }, { k: 'valid_from', h:'Starts',render:(r)=>r.valid_from?.slice(0,10)}, { k: 'valid_until', h: 'Expires', render: (r) => r.valid_until?.slice(0, 10) || 'Never' },{k:'active',h:'Status',render:(r)=><Sel v={r.active?'active':'inactive'} opts={['active','inactive']} on={v=>mutate({action:'update_coupon',id:r.id,active:v==='active'})}/>}]} />
     </Card>
   </div>;
 }

@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const { response } = await requireAdmin(request);
   if (response) return response;
   const url = new URL(request.url);
-  let query = admin.from('question_bank').select('id,category,language,question_en,question_ne,explanation_en,explanation_ne,active,difficulty,created_at').order('id', { ascending: false }).limit(100);
+  let query = admin.from('question_bank').select('id,category,language,question_en,question_ne,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ne,option_b_ne,option_c_ne,option_d_ne,correct_option,explanation_en,explanation_ne,active,difficulty,created_at').order('id', { ascending: false }).limit(100);
   const search = url.searchParams.get('search')?.trim().slice(0, 100);
   if (search) query = query.or(`question_en.ilike.%${search.replace(/[,%()]/g, '')}%,question_ne.ilike.%${search.replace(/[,%()]/g, '')}%`);
   const { data, error } = await query;
@@ -31,7 +31,13 @@ export async function POST(request: Request) {
     if (!Number.isSafeInteger(id) || id < 1 || !categories.has(category) || !['en','ne','mixed'].includes(language) || !['easy','medium','hard'].includes(difficulty) || typeof body.active !== 'boolean') return NextResponse.json({ error: 'Provide valid question fields.' }, { status: 400 });
     const questionEn = clean(body.question_en); const questionNe = clean(body.question_ne);
     if (!questionEn && !questionNe) return NextResponse.json({ error: 'A question needs English or Nepali text.' }, { status: 400 });
-    const { data, error } = await admin.from('question_bank').update({ category, language, difficulty, question_en: questionEn || null, question_ne: questionNe || null, explanation_en: clean(body.explanation_en, 2000) || null, explanation_ne: clean(body.explanation_ne, 2000) || null, active: body.active, updated_at: new Date().toISOString() }).eq('id', id).select('id').maybeSingle();
+    const optionsEn=['a','b','c','d'].map(k=>clean(body[`option_${k}_en`],500)); const optionsNe=['a','b','c','d'].map(k=>clean(body[`option_${k}_ne`],500));
+    const correct=clean(body.correct_option,1).toUpperCase();
+    if(optionsEn.some((v,i)=>!v&&!optionsNe[i])||!['A','B','C','D'].includes(correct))return NextResponse.json({error:'Provide all four options in at least one language and a correct answer.'},{status:400});
+    const { data, error } = await admin.from('question_bank').update({ category, language, difficulty, question_en: questionEn || null, question_ne: questionNe || null,
+      option_a_en:optionsEn[0]||null,option_b_en:optionsEn[1]||null,option_c_en:optionsEn[2]||null,option_d_en:optionsEn[3]||null,
+      option_a_ne:optionsNe[0]||null,option_b_ne:optionsNe[1]||null,option_c_ne:optionsNe[2]||null,option_d_ne:optionsNe[3]||null,correct_option:correct,
+      explanation_en: clean(body.explanation_en, 2000) || null, explanation_ne: clean(body.explanation_ne, 2000) || null, active: body.active, updated_at: new Date().toISOString() }).eq('id', id).select('id').maybeSingle();
     if (error) return NextResponse.json({ error: 'Question could not be updated.' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'Question not found.' }, { status: 404 });
     const forwarded = getAdminRequestIp(request);
@@ -39,7 +45,7 @@ export async function POST(request: Request) {
     if (auditError) return NextResponse.json({ error: 'Question saved, but its audit record could not be written.' }, { status: 500 });
     return NextResponse.json({ ok: true, id });
   }
-  if (!Array.isArray(body?.questions) || body.questions.length > 10000) return NextResponse.json({ error: 'Upload a CSV with at most 10,000 question rows.' }, { status: 400 });
+  if (!Array.isArray(body?.questions) || body.questions.length > 10000) return NextResponse.json({ error: 'Import at most 10,000 question rows at a time.' }, { status: 400 });
   const { data: existing, error: readError } = await admin.from('question_bank').select('question_en,question_ne');
   if (readError) return NextResponse.json({ error: 'Question bank is unavailable. Apply the blueprint migration first.' }, { status: 503 });
   const seen = new Set((existing || []).flatMap((q) => [q.question_en, q.question_ne].filter(Boolean).map(norm)));

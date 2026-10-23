@@ -43,6 +43,7 @@ async function markPaid(order: any, transaction: string, request: Request) {
   }
   const { error: updateError } = await admin.from('billing_orders').update({ status: 'paid', provider_transaction: transaction, metadata: order.metadata || {}, updated_at: new Date().toISOString() }).eq('id', order.id).eq('status', 'pending');
   if (updateError) throw updateError;
+  if(order.metadata?.coupon_code){const {error}=await admin.rpc('finalize_coupon',{p_order_id:order.id});if(error)throw error;}
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;
   await admin.from('activity_log').insert({ actor: order.user_id || 'exam candidate', action: 'billing_order_paid', meta: { order_id: order.id, product: order.product, provider: order.provider, ip, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
   return passCode;

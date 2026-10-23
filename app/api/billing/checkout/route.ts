@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const product = body.product;
   const packageCode = typeof body.packageCode === 'string' ? body.packageCode : (product === 'exam_pass' ? 'exam_pro_month' : product);
   const provider = body.provider;
+  const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32) : '';
   if (!['agency_basic','agency_pro','exam_pass'].includes(product) || !['esewa','khalti'].includes(provider)) return NextResponse.json({ error: 'Choose an available plan and payment provider.' }, { status: 400 });
 
   let user: any = null;
@@ -26,16 +27,20 @@ export async function POST(request: Request) {
 
   const { data: pkg, error: packageError } = await admin.from('subscription_packages').select('code,audience,amount_npr,duration_days,active').eq('code',packageCode).eq('active',true).maybeSingle();
   if(packageError||!pkg||pkg.amount_npr<=0||pkg.audience!==(product==='exam_pass'?'exam':'agency'))return NextResponse.json({error:'This package is unavailable.'},{status:400});
-  const amount=Number(pkg.amount_npr); const currency='NPR';
+  let discount=0;
+  if(couponCode){const {data,error}=await admin.rpc('coupon_discount',{p_code:couponCode});if(error||data==null)return NextResponse.json({error:'This coupon is invalid, expired, or has reached its use limit.'},{status:400});discount=Number(data);}
+  const amount=Number((Number(pkg.amount_npr)*(1-discount/100)).toFixed(2)); const currency='NPR';
+  if(amount<=0)return NextResponse.json({error:'A 100% discount cannot be used with this payment provider.'},{status:400});
 
   const esewaReady = !!(process.env.ESEWA_PRODUCT_CODE && process.env.ESEWA_SECRET_KEY);
   const khaltiReady = !!process.env.KHALTI_SECRET_KEY;
   if (provider === 'esewa' && !esewaReady || provider === 'khalti' && !khaltiReady) return NextResponse.json({ error: `${provider === 'esewa' ? 'eSewa' : 'Khalti'} checkout is not configured yet.` }, { status: 503 });
 
   const { data: order, error: insertError } = await admin.from('billing_orders').insert({
-    user_id: user?.id || null, product: product==='exam_pass'?'exam_pass':packageCode, package_code:packageCode, provider, amount, currency, metadata: { ...(guestName ? { name: guestName, phone: guestPhone } : {}), duration_days:pkg.duration_days },
+    user_id: user?.id || null, product: product==='exam_pass'?'exam_pass':packageCode, package_code:packageCode, provider, amount, currency, metadata: { ...(guestName ? { name: guestName, phone: guestPhone } : {}), duration_days:pkg.duration_days, ...(couponCode?{coupon_code:couponCode,discount_percent:discount}:{}) },
   }).select('id').single();
   if (insertError || !order) return NextResponse.json({ error: 'Could not create the payment request.' }, { status: 500 });
+  if(couponCode){const {data:reserved,error}=await admin.rpc('reserve_coupon',{p_code:couponCode,p_order_id:order.id});if(error||reserved==null){await admin.from('billing_orders').delete().eq('id',order.id);return NextResponse.json({error:'This coupon just reached its use limit. Try another code.'},{status:409});}}
   const callback = `${siteUrl('root')}/api/billing/callback/${provider}?order_id=${encodeURIComponent(order.id)}`;
 
   if (provider === 'esewa') {
@@ -61,6 +66,7 @@ export async function POST(request: Request) {
   const khalti = await response.json().catch(() => ({}));
   if (!response.ok || !khalti.payment_url || !khalti.pidx) {
     await admin.from('billing_orders').update({ status: 'failed', metadata: { error: 'provider_init_failed' } }).eq('id', order.id);
+    if(couponCode)await admin.rpc('release_coupon',{p_order_id:order.id});
     return NextResponse.json({ error: 'Khalti could not initialize payment. Try again later.' }, { status: 502 });
   }
   await admin.from('billing_orders').update({ provider_reference: khalti.pidx }).eq('id', order.id);

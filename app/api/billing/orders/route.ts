@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const packageCode = String(form.get('packageCode') || '');
   const provider = String(form.get('provider') || '');
+  const couponCode = String(form.get('couponCode') || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
   const file = form.get('voucher');
   const isExam = packageCode.startsWith('exam_');
   let user: any = null;
@@ -24,6 +25,14 @@ export async function POST(request: Request) {
   const name = String(form.get('name') || '').trim().slice(0,100);
   const phone = String(form.get('phone') || '').replace(/[^+\d]/g,'').slice(0,20);
   if (isExam && (name.length < 2 || phone.replace(/\D/g,'').length < 7)) return NextResponse.json({ error: 'Enter your name and valid phone number.' }, { status: 400 });
+  let discount = 0;
+  if (couponCode) {
+    const { data, error } = await admin.rpc('coupon_discount', { p_code: couponCode });
+    if (error || data == null) return NextResponse.json({ error: 'This coupon is invalid, expired, or has reached its use limit.' }, { status: 400 });
+    discount = Number(data);
+  }
+  const amount = Number((Number(pkg.amount_npr) * (1 - discount / 100)).toFixed(2));
+  if (amount <= 0) return NextResponse.json({ error: 'A 100% discount cannot be used for a manual QR payment.' }, { status: 400 });
   const raw = Buffer.from(await file.arrayBuffer());
   let image: Buffer;
   try {
@@ -36,8 +45,16 @@ export async function POST(request: Request) {
   const { error: uploadError } = await admin.storage.from('payment-vouchers').upload(path, image, { contentType: 'image/jpeg', upsert: false });
   if (uploadError) return NextResponse.json({ error: 'Could not securely store the voucher.' }, { status: 500 });
   const claimToken = isExam ? randomBytes(32).toString('hex') : null;
-  const { data, error } = await admin.from('billing_orders').insert({ id, user_id: user?.id || null, product: isExam ? 'exam_pass' : packageCode, package_code: packageCode, provider, amount: pkg.amount_npr, currency: 'NPR', status: 'pending', voucher_path: path, claim_token_hash: claimToken ? hash(claimToken) : null, metadata: { ...(isExam ? { name, phone } : {}), duration_days: pkg.duration_days } }).select('id,amount,currency,status,created_at').single();
+  const { data, error } = await admin.from('billing_orders').insert({ id, user_id: user?.id || null, product: isExam ? 'exam_pass' : packageCode, package_code: packageCode, provider, amount, currency: 'NPR', status: 'pending', voucher_path: path, claim_token_hash: claimToken ? hash(claimToken) : null, metadata: { ...(isExam ? { name, phone } : {}), duration_days: pkg.duration_days, ...(couponCode ? { coupon_code: couponCode, discount_percent: discount } : {}) } }).select('id,amount,currency,status,created_at').single();
   if (error || !data) { await admin.storage.from('payment-vouchers').remove([path]); return NextResponse.json({ error: 'Could not create the payment request.' }, { status: 500 }); }
+  if (couponCode) {
+    const { data: reserved, error: reserveError } = await admin.rpc('reserve_coupon', { p_code: couponCode, p_order_id: id });
+    if (reserveError || reserved == null) {
+      await admin.from('billing_orders').delete().eq('id', id);
+      await admin.storage.from('payment-vouchers').remove([path]);
+      return NextResponse.json({ error: 'This coupon just reached its use limit. Try another code.' }, { status: 409 });
+    }
+  }
   return NextResponse.json({ order: data, claimToken }, { status: 201 });
 }
 

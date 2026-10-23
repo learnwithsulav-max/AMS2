@@ -145,6 +145,7 @@ export async function POST(request: Request) {
     }
     const { data, error } = await admin.from('billing_orders').update({status:decision==='approve'?'paid':'rejected',expires_at:decision==='approve'?expiresAt:null,reviewed_by:user.id,reviewed_at:now.toISOString()}).eq('id',id).eq('status','pending').select('id').maybeSingle();
     result={data,error}; action=decision==='approve'?'billing_order_approved':'billing_order_rejected'; targetId=id; meta={decision,package_code:order.package_code,amount:order.amount};
+    if(data&&order.metadata?.coupon_code){const {error:couponError}=await admin.rpc(decision==='approve'?'finalize_coupon':'release_coupon',{p_order_id:id});if(couponError){console.error('Coupon redemption accounting failed:',couponError.message);return NextResponse.json({error:'Payment status changed, but coupon accounting needs admin review.'},{status:500});}}
     if(data&&decision==='approve'){
       const links='WhatsApp community: https://chat.whatsapp.com/IA5HndEQhscGMsMxnYi6uc · Facebook: https://www.facebook.com/share/1C2En4gvsg/';
       const recipients:{channel:string;recipient:string;subject:string|null}[]=[];
@@ -174,11 +175,19 @@ export async function POST(request: Request) {
   } else if (body.action === 'create_coupon') {
     const code = typeof body.code === 'string' ? body.code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32) : '';
     const discount = Number(body.discount_percent);
-    if (code.length < 4 || !Number.isFinite(discount) || discount <= 0 || discount > 100) return NextResponse.json({ error: 'Enter a coupon code and discount between 1 and 100 percent.' }, { status: 400 });
+    if (code.length < 4 || !Number.isFinite(discount) || discount <= 0 || discount >= 100) return NextResponse.json({ error: 'Enter a coupon code and discount between 1 and 99.99 percent.' }, { status: 400 });
     const max = body.max_redemptions === '' || body.max_redemptions == null ? null : Number(body.max_redemptions);
     if (max !== null && (!Number.isInteger(max) || max < 1)) return NextResponse.json({ error: 'Redemption limit must be a positive whole number.' }, { status: 400 });
-    result = await admin.from('coupons').insert({ code, discount_percent: discount, valid_until: body.valid_until || null, max_redemptions: max, created_by: user.id }).select('id').single();
+    const parseDay=(value:unknown,exclusiveEnd=false)=>{if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const date=new Date(`${value}T00:00:00.000Z`);if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==value)return null;if(exclusiveEnd)date.setUTCDate(date.getUTCDate()+1);return date.toISOString();};
+    const validFrom=body.valid_from?parseDay(body.valid_from):new Date().toISOString();
+    const validUntil=body.valid_until?parseDay(body.valid_until,true):null;
+    if(!validFrom||body.valid_until&&!validUntil||validUntil&&new Date(validUntil)<=new Date(validFrom))return NextResponse.json({error:'Choose a valid coupon date range.'},{status:400});
+    result = await admin.from('coupons').insert({ code, discount_percent: discount, valid_from: validFrom, valid_until: validUntil, max_redemptions: max, created_by: user.id }).select('id').single();
     action = 'coupon_created'; meta = { code, discount_percent: discount };
+  } else if(body.action==='update_coupon'){
+    if(typeof body.id!=='string'||typeof body.active!=='boolean')return NextResponse.json({error:'Choose a coupon and active state.'},{status:400});
+    result=await admin.from('coupons').update({active:body.active}).eq('id',body.id).select('id').maybeSingle();
+    action=body.active?'coupon_activated':'coupon_deactivated';targetId=body.id;meta={active:body.active};
   } else if (body.action === 'moderate_review') {
     if (typeof body.id !== 'string' || typeof body.approved !== 'boolean') return NextResponse.json({ error: 'Provide a review and approval status.' }, { status: 400 });
     result = await admin.from('portfolio_reviews').update({ approved: body.approved }).eq('id', body.id).select('id').maybeSingle();
@@ -198,7 +207,7 @@ export async function POST(request: Request) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated','coupon_activated','coupon_deactivated'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
