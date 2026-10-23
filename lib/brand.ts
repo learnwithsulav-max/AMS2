@@ -24,7 +24,6 @@ export const EXAM = {
 export type SiteKey = 'root' | 'agency' | 'exam' | 'admin';
 
 export function siteUrl(site: SiteKey) {
-  const root = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np';
-  const proto = root.startsWith('localhost') ? 'http' : 'https';
-  return site === 'root' ? `${proto}://${root}` : `${proto}://${site}.${root}`;
+  const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '');
+  return site === 'root' ? `https://www.${root}` : `https://${site}.${root}`;
 }

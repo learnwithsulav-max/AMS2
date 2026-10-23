@@ -26,17 +26,23 @@ for the app's dependency root.
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from Supabase Project Settings > API. The public publishable key is
    safe for browser use. Set `SUPABASE_SERVICE_ROLE_KEY` separately for the protected server-side admin and exam
    APIs; never expose it to the browser or commit it. The Supabase helpers live in `utils/supabase/`.
-4. **Run locally**: `npm run dev`, then open `localhost:3000` (landing), `exam.localhost:3000`,
-   `agency.localhost:3000`, `admin.localhost:3000`. Set `NEXT_PUBLIC_ROOT_DOMAIN=localhost:3000` for local links.
-5. **Deploy**: push to GitHub, import into Vercel, add the same env variables (with `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np`).
+4. **Use the website and app on your domain**: set `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np` in `.env.local` and in the Vercel Production environment. All portal links use HTTPS on the production domains. Vercel preview deployments remain available on their `vercel.app` address.
+5. **Deploy**: push to GitHub, import into Vercel, and add the Supabase variables plus `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np`.
    In Vercel > Domains add `sulavs.com.np`, `www`, `agency`, `exam` and `admin`.
-6. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
+6. **Supabase Auth URLs**: set the Site URL to `https://sulavs.com.np` and add `https://sulavs.com.np/**`,
+   `https://agency.sulavs.com.np/**`, `https://exam.sulavs.com.np/**`, and `https://admin.sulavs.com.np/**` to the redirect URL allowlist.
+7. **Install as an app**: visit the domain in a mobile browser and choose “Add to Home Screen” or “Install app”.
+   The installed app opens the same HTTPS website in standalone mode.
+8. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
    "DNS only" (grey cloud) or set SSL/TLS mode to Full (strict).
-7. **First admin**: create the admin user in Supabase Authentication > Users, then run in the SQL Editor:
+9. **First admin**: create the admin user in Supabase Authentication > Users, then run in the SQL Editor:
    `update profiles set role = 'admin', membership = 'premium' where email = 'learnwithsulav@gmail.com';`
    Set the account password in Supabase; never put it in source code, `.env` files, or Git. Admin data and
    mutations are served through authenticated server routes; keep `SUPABASE_SERVICE_ROLE_KEY` server-only.
 
+## Existing AMS database update
+
+For a new Supabase project, run `supabase/schema.sql` as above. For an already-running AMS database, run `supabase/upgrade-portfolios-exam-passes.sql` once before deploying the new code. This adds the RLS-protected public portfolio surface, narrow self-edit permissions, and the manual exam pass tables. Paid exam access stays disabled until an admin sets a positive NPR price and payment instructions in Admin > Exam passes.
 ## Things to adjust
 
 - `lib/brand.ts`: exam length, pass percentage, links, contact details.

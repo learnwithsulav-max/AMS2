@@ -4,6 +4,7 @@ import { Btn, Card, Field, LinkBtn, Badge, cx } from '../ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, EXAM } from '@/lib/brand';
 import { downloadPdf, downloadPng, renderCertificate } from './certificate';
+import { PassPurchase } from './PassPurchase';
 
 const SESSION = 'lsw_exam_session';
 const HISTORY = 'lsw_exam_history';
@@ -14,6 +15,9 @@ export default function ExamApp() {
   const { t } = useI18n();
   const [stage, setStage] = useState<'intro' | 'exam' | 'result'>('intro');
   const [who, setWho] = useState({ name: '', phone: '' });
+  const [passCode, setPassCode] = useState('');
+  const [salesActive, setSalesActive] = useState(false);
+  const onPassAvailability = useCallback((active: boolean) => setSalesActive(active), []);
   const [attempt, setAttempt] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
@@ -39,9 +43,10 @@ export default function ExamApp() {
 
   async function start(e: any) {
     e.preventDefault(); setBusy(true); setErr('');
-    const r = await fetch('/api/exam/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(who) });
+    const r = await fetch('/api/exam/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(salesActive ? { passCode } : who) });
     const j = await r.json(); setBusy(false);
     if (!r.ok) return setErr(j.error || 'Something went wrong.');
+    setPassCode('');
     localStorage.setItem(SESSION, JSON.stringify({ attempt: j, answers: {}, page: 0 }));
     begin(j, {}, 0);
   }
@@ -96,12 +101,11 @@ export default function ExamApp() {
             </div>
           )}
           <form onSubmit={start} className="mt-5 grid gap-4">
-            <Field label={t('full_name')} required value={who.name} onChange={(e: any) => setWho({ ...who, name: e.target.value })} />
-            <Field label={t('phone')} required inputMode="tel" value={who.phone} onChange={(e: any) => setWho({ ...who, phone: e.target.value })} />
-            {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+            {salesActive ? <Field label="Approved exam pass code" required value={passCode} onChange={(e: any) => setPassCode(e.target.value.toUpperCase())} /> : <><Field label={t('full_name')} required value={who.name} onChange={(e: any) => setWho({ ...who, name: e.target.value })} /><Field label={t('phone')} required inputMode="tel" value={who.phone} onChange={(e: any) => setWho({ ...who, phone: e.target.value })} /></>}            {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
             <Btn type="submit" disabled={busy}>{t('start')}</Btn>
           </form>
         </Card>
+        <PassPurchase onPassCode={setPassCode} onAvailability={onPassAvailability} />
         <Card className="p-6">
           <h2 className="font-bold">{t('history')}</h2>
           <ul className="mt-3 grid gap-2 text-sm">

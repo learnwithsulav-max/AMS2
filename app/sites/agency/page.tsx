@@ -8,11 +8,12 @@ import { Plans } from '@/components/agency/Plans';
 import { Calculator } from '@/components/agency/Calculator';
 import { Schemes } from '@/components/agency/Schemes';
 import { Profile } from '@/components/agency/Profile';
+import { PublicPortfolio } from '@/components/agency/PublicPortfolio';
 import { useAuth } from '@/lib/auth';
 
 const TABS = [
   { k: 'leads', l: 'Leads' }, { k: 'plans', l: 'Plans and policies' },
-  { k: 'tdi', l: 'TDI and BDI', premium: true }, { k: 'scheme', l: 'Monthly scheme', premium: true }, { k: 'profile', l: 'Profile' },
+  { k: 'tdi', l: 'TDI and BDI', premium: true }, { k: 'scheme', l: 'Monthly scheme', premium: true }, { k: 'profile', l: 'Profile' }, { k: 'portfolio', l: 'Public portfolio' },
 ];
 
 export default function Agency() {
@@ -47,7 +48,7 @@ export default function Agency() {
           : tab === 'plans' ? <Plans uid={profile.id} />
           : tab === 'tdi' ? <Calculator uid={profile.id} />
           : tab === 'scheme' ? <Schemes uid={profile.id} />
-          : <Profile profile={profile} reload={reload} />}
+          : tab === 'profile' ? <Profile profile={profile} reload={reload} /> : <PublicPortfolio profile={profile} />}
       </div>
     </Shell>
   );

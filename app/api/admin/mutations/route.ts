@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
@@ -91,15 +92,36 @@ export async function POST(request: Request) {
     action = 'scheme_status_updated';
     targetId = `${scheme_id}:${agent_id}`;
     meta = { scheme_id, agent_id, achieved: Number(achieved), status };
+  } else if (body.action === 'update_exam_pass_settings') {
+    const price = Number(body.price);
+    const paymentInstructions = typeof body.payment_instructions === 'string' ? body.payment_instructions.trim().slice(0, 2000) : '';
+    if (!Number.isFinite(price) || price < 0 || price > 1000000 || Math.round(price * 100) !== price * 100 || (price > 0 && (paymentInstructions.length < 10 || paymentInstructions === 'Contact support for payment instructions.'))) {
+      return NextResponse.json({ error: 'Enter a valid NPR price and specific payment instructions before enabling pass sales.' }, { status: 400 });
+    }
+    result = await admin.from('exam_pass_settings').upsert({ id: true, price, currency: 'NPR', payment_instructions: paymentInstructions, active: price > 0, updated_at: new Date().toISOString() }, { onConflict: 'id' }).select('id').single();
+    action = price > 0 ? 'exam_pass_price_updated' : 'exam_pass_sales_disabled';
+    targetId = 'exam-pass-settings';
+    meta = { price, currency: 'NPR', active: price > 0 };
+  } else if (body.action === 'review_exam_pass') {
+    const { id, decision } = body;
+    if (typeof id !== 'string' || !id || !['approve', 'reject'].includes(decision)) return NextResponse.json({ error: 'Choose a pending pass request and a valid decision.' }, { status: 400 });
+    const passCode = decision === 'approve' ? `LWS-${randomBytes(8).toString('hex').toUpperCase()}` : null;
+    const { data, error } = await admin.from('exam_pass_orders').update({
+      status: decision === 'approve' ? 'approved' : 'rejected', pass_code: passCode,
+      reviewed_by: user.email || user.id, reviewed_at: new Date().toISOString(),
+    }).eq('id', id).eq('status', 'pending').select('id').maybeSingle();
+    result = { data, error };
+    action = decision === 'approve' ? 'exam_pass_approved' : 'exam_pass_rejected';
+    targetId = id;
+    meta = { decision };
   } else {
     return NextResponse.json({ error: 'Unsupported admin action.' }, { status: 400 });
   }
-
   if (result.error) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
@@ -110,3 +132,4 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ ok: true, id: targetId });
 }
+

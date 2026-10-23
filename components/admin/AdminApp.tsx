@@ -11,9 +11,9 @@ import { Shell } from '../Shell';
 import { Badge, Btn, Card, Field, cx } from '../ui';
 import { DataPager, DataTable } from './DataTable';
 
-const TABLES = ['profiles', 'exam_attempts', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log'];
+const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log'];
 const PAGE_SIZE = 100;
-const TABS = ['Overview', 'Agents', 'Exams', 'Leads', 'Finance', 'Schemes', 'Logs'];
+const TABS = ['Overview', 'Agents', 'Exams', 'Exam passes', 'Leads', 'Finance', 'Schemes', 'Logs'];
 
 export default function AdminApp() {
   const { session, profile, loading, signOut } = useAuth();
@@ -136,6 +136,8 @@ function Dashboard() {
         ]} />
       )}
 
+      {tab === 'Exam passes' && <ExamPassAdmin settings={(d.exam_pass_settings || [])[0]} orders={d.exam_pass_orders || []} mutate={mutate} onRefresh={load} />}
+
       {tab === 'Exams' && <DataTable name="exam-results" rows={A} page={pages.exam_attempts || 1} total={counts.exam_attempts || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('exam_attempts', page)} onSearch={(search) => searchTable('exam_attempts', search)} cols={examCols} />}
 
@@ -177,6 +179,32 @@ function Dashboard() {
   );
 }
 
+function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any; orders: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean>; onRefresh: () => Promise<void> }) {
+  const [price, setPrice] = useState(settings?.price ?? 0);
+  const [instructions, setInstructions] = useState(settings?.payment_instructions || '');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setPrice(settings?.price ?? 0); setInstructions(settings?.payment_instructions || ''); }, [settings?.price, settings?.payment_instructions]);
+  async function save(e: any) {
+    e.preventDefault(); setSaving(true);
+    await mutate({ action: 'update_exam_pass_settings', price: Number(price), payment_instructions: instructions });
+    setSaving(false);
+  }
+  return <div className="grid gap-6">
+    <form onSubmit={save} className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5">
+      <div><h2 className="font-bold">Exam pass settings</h2><p className="mt-1 text-sm text-slate-600">Set a price in NPR to enable paid passes. A zero price disables sales and keeps the current exam access behavior.</p></div>
+      <Field label="Price per attempt (NPR)" required type="number" min="0" max="1000000" step="0.01" value={price} onChange={(e: any) => setPrice(e.target.value)} />
+      <label className="grid gap-1 text-sm font-medium">Payment instructions for customers<textarea maxLength={2000} rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" placeholder="Wallet ID, bank details, or contact instructions" /></label>
+      <Btn type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save pass settings'}</Btn>
+    </form>
+    <section><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">Receipt requests</h2><Btn variant="ghost" onClick={onRefresh}>Refresh receipts</Btn></div>
+      {!orders.length ? <Card className="p-5 text-sm text-slate-600">No receipt requests yet.</Card> : <div className="grid gap-3">{orders.map((order) => <Card key={order.id} className="grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
+        <div><p className="font-semibold">{order.name} · {order.phone}</p><p className="text-sm text-slate-600">{order.currency} {Number(order.amount).toLocaleString()} · {order.payment_method}</p></div>
+        <div><p className="text-sm">Reference: <span className="font-mono">{order.receipt_reference}</span></p><p className="text-xs capitalize text-slate-500">{order.status} · {new Date(order.created_at).toLocaleString()}</p></div>
+        {order.status === 'pending' ? <div className="flex gap-2"><Btn onClick={() => mutate({ action: 'review_exam_pass', id: order.id, decision: 'approve' })}>Approve</Btn><Btn variant="ghost" onClick={() => mutate({ action: 'review_exam_pass', id: order.id, decision: 'reject' })}>Reject</Btn></div> : <span className="text-sm text-slate-500">{order.status === 'approved' ? 'Pass issued' : order.status === 'redeemed' ? 'Pass used' : 'Reviewed'}</span>}
+      </Card>)}</div>}
+    </section>
+  </div>;
+}
 const examCols = [
   { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' },
   { k: 'score', h: 'Marks', render: (r: any) => (r.submitted_at ? `${r.score}/${r.max_marks}` : 'In progress'), csv: (r: any) => (r.submitted_at ? r.score : '') },
@@ -303,3 +331,4 @@ function Schemes({ P, schemes, status, mutate }: any) {
     </div>
   );
 }
+

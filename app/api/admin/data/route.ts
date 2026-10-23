@@ -12,6 +12,8 @@ const TABLES = {
   schemes: { columns: 'id,title,month_label,target,criteria,active,created_at', order: 'created_at', search: 'title' },
   scheme_status: { columns: 'id,scheme_id,agent_id,achieved,status,note,created_at', order: 'created_at', search: 'note' },
   activity_log: { columns: 'id,actor,action,meta,created_at', order: 'created_at', search: 'actor' },
+  exam_pass_settings: { columns: 'id,price,currency,active,payment_instructions,updated_at', order: 'updated_at', search: null },
+  exam_pass_orders: { columns: 'id,name,phone,amount,currency,payment_method,receipt_reference,status,reviewed_by,reviewed_at,created_at', order: 'created_at', search: 'name' },
 } as const;
 
 type TableName = keyof typeof TABLES;

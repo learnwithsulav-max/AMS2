@@ -14,6 +14,7 @@ export default function Landing() {
     { title: t('svc_exam_t'), body: t('svc_exam_d'), href: siteUrl('exam') },
     { title: t('svc_agency_t'), body: t('svc_agency_d'), href: siteUrl('agency') },
     { title: t('svc_comm_t'), body: t('svc_comm_d'), href: BRAND.links.whatsapp },
+    { title: 'Find an advisor', body: 'Browse public profiles from Learn With Sulav agents.', href: '/agents' },
   ];
   const community = [
     { l: t('link_fb'), d: t('link_fb_d'), href: BRAND.links.facebook },
