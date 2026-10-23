@@ -135,7 +135,10 @@ function Dashboard() {
       {tab === 'Agents' && (
         <DataTable name="agents" rows={P} page={pages.profiles || 1} total={counts.profiles || 0} pageSize={PAGE_SIZE}
           onPageChange={(page) => changePage('profiles', page)} onSearch={(search) => searchTable('profiles', search)} cols={[
-          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone', render: (r) => <MaskedPhone value={r.phone} />, csv: (r) => maskPhone(r.phone) }, { k: 'license_no', h: 'License' }, { k: 'branch', h: 'Branch' },
+          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone', render: (r) => <MaskedPhone value={r.phone} />, csv: (r) => maskPhone(r.phone) },
+          { k: 'pan_number', h: 'PAN No.', render: (r) => <span className="font-mono text-xs font-semibold text-slate-800">{r.pan_number || r.pan || '—'}</span>, csv: (r) => r.pan_number || r.pan || '' },
+          { k: 'company', h: 'Company', render: (r) => <span className="text-xs font-medium text-slate-700">{r.company || '—'}</span>, csv: (r) => r.company || '' },
+          { k: 'license_no', h: 'License' }, { k: 'branch', h: 'Branch' },
           { k: 'referral_code', h: 'Referral code' }, { k: 'upline', h: 'Upline', render: (r) => name[r.upline_id] || '-', csv: (r) => name[r.upline_id] || '' },
           { k: 'membership', h: 'Membership', render: (r) => <Sel v={r.membership} opts={['free', 'premium']} on={(v) => mutate({ action: 'update_agent', id: r.id, membership: v })} /> },
           { k: 'status', h: 'Status', render: (r) => <Sel v={r.status} opts={['active', 'suspended']} on={(v) => mutate({ action: 'update_agent', id: r.id, status: v })} /> },
@@ -365,7 +368,10 @@ function Finance({ P, POL, inRange, name, from, to, setFrom, setTo, mutate }: an
         <h2 className="mb-3 font-bold">Policy ledger</h2>
         <DataTable name="policies" rows={inRange} cols={[
           { k: 'issue_date', h: 'Issued' }, { k: 'agent', h: 'Agent', render: (r: any) => name[r.agent_id], csv: (r: any) => name[r.agent_id] },
-          { k: 'client_name', h: 'Client' }, { k: 'plan', h: 'Plan', render: (r: any) => planName(r.plan_type), csv: (r: any) => planName(r.plan_type) },
+          { k: 'client_name', h: 'Client' },
+          { k: 'client_phone', h: 'Phone', render: (r: any) => r.client_phone || '—', csv: (r: any) => r.client_phone || '' },
+          { k: 'company', h: 'Company', render: (r: any) => r.company || '—', csv: (r: any) => r.company || '' },
+          { k: 'plan', h: 'Plan', render: (r: any) => planName(r.plan_type), csv: (r: any) => planName(r.plan_type) },
           { k: 'premium_mode', h: 'Mode' }, { k: 'term_years', h: 'Term' },
           { k: 'premium', h: 'Premium', render: (r: any) => npr(r.premium), csv: (r: any) => r.premium },
           { k: 'count', h: 'Counts', render: (r: any) => `${weightPct(r.premium_mode, r.term_years) * 100}%`, csv: (r: any) => weightPct(r.premium_mode, r.term_years) * 100 },

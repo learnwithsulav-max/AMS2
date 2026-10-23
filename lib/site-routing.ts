@@ -13,14 +13,16 @@ function hostname(value: string | null | undefined): string {
 }
 
 function isPreviewHost(host: string): boolean {
-  return host.endsWith('.vercel.app');
+  if (!host) return true;
+  const root = hostname(process.env.NEXT_PUBLIC_ROOT_DOMAIN || DEFAULT_ROOT_DOMAIN).replace(/^www\./, '');
+  return host !== root && host !== `www.${root}` && !host.endsWith(`.${root}`);
 }
 
 export function resolveSite(hostHeader: string | null, requestedSite: string | null): SiteKey {
   const host = hostname(hostHeader);
   const root = hostname(process.env.NEXT_PUBLIC_ROOT_DOMAIN || DEFAULT_ROOT_DOMAIN).replace(/^www\./, '');
 
-  if (requestedSite && PORTALS.has(requestedSite as SiteKey) && isPreviewHost(host)) {
+  if (requestedSite && (PORTALS.has(requestedSite as SiteKey) || requestedSite === 'root') && isPreviewHost(host)) {
     return requestedSite as SiteKey;
   }
 

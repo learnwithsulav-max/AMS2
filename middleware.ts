@@ -11,13 +11,20 @@ import { resolveSite } from '@/lib/site-routing';
 export async function middleware(req: NextRequest) {
   const refreshedCookies = await updateSession(req);
   const url = req.nextUrl.clone();
+  const requestedSite = url.searchParams.get('site');
+  const cookieSite = req.cookies.get('lsw_site')?.value;
+  const site = resolveSite(req.headers.get('host'), requestedSite || cookieSite);
+
   const response = url.pathname.startsWith('/sites')
     ? NextResponse.redirect(new URL('/', req.url))
     : (() => {
-      const site = resolveSite(req.headers.get('host'), url.searchParams.get('site'));
       url.pathname = `/sites/${site}${url.pathname === '/' ? '' : url.pathname}`;
       return NextResponse.rewrite(url, { request: req });
     })();
+
+  if (requestedSite && ['root', 'agency', 'exam', 'admin'].includes(requestedSite)) {
+    response.cookies.set('lsw_site', requestedSite, { path: '/', httpOnly: false, sameSite: 'lax' });
+  }
 
   refreshedCookies.forEach(({ name, value, ...options }) => response.cookies.set(name, value, options));
   return response;
