@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { siteUrl } from '@/lib/brand';
 import { Btn, Card, Field } from '../ui';
+import { MarketingKit } from './MarketingKit';
 
 type Portfolio = {
   user_id: string; slug: string; display_name: string; headline: string; bio: string;
@@ -39,7 +40,7 @@ export function PublicPortfolio({ profile }: { profile: any }) {
   const link = value.slug ? `${siteUrl('root')}/agents/${value.slug}` : '';
   if (!loaded) return <p className="p-8 text-center text-slate-500">Loading public profile…</p>;
 
-  return <Card className="mx-auto max-w-3xl p-6">
+  return <div className="mx-auto grid max-w-3xl gap-5"><Card className="p-6">
     <h2 className="text-xl font-bold">Public agent portfolio</h2>
     <p className="mb-5 mt-1 text-sm text-slate-600">Only information entered here appears in your public portfolio. Your account address, license number, referral code, and business records stay private.</p>
     <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
@@ -57,5 +58,5 @@ export function PublicPortfolio({ profile }: { profile: any }) {
       {message && <p role="status" className="text-sm text-slate-600 sm:col-span-2">{message}</p>}
       <Btn type="submit" disabled={busy} className="sm:col-span-2">{busy ? 'Saving…' : 'Save public profile'}</Btn>
     </form>
-  </Card>;
+  </Card>{value.slug && <MarketingKit profile={profile} url={link} />}</div>;
 }

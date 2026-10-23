@@ -26,6 +26,23 @@ function selectQuestions() {
   return shuffle(selected);
 }
 
+function selectImported(rows: any[]) {
+  const perCategory = Math.floor(EXAM.total / QUESTION_CATEGORIES.length);
+  const remaining = EXAM.total % QUESTION_CATEGORIES.length;
+  const selected: any[] = [];
+  for (const [index, category] of QUESTION_CATEGORIES.entries()) {
+    const quota = perCategory + (index < remaining ? 1 : 0);
+    const available = rows.filter((row) => row.category === category).map((row) => ({
+      id: Number(row.id), category: row.category, q: row.question_en || row.question_ne,
+      ans: row.correct_option,
+      options: ['A','B','C','D'].map((key) => ({ k: key, text: row[`option_${key.toLowerCase()}_en`] || row[`option_${key.toLowerCase()}_ne`] })),
+    }));
+    if (available.length < quota) return null;
+    selected.push(...shuffle(available).slice(0, quota));
+  }
+  return shuffle(selected);
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const { data: setting, error: settingError } = await admin.from('exam_pass_settings').select('price,active').eq('id', true).maybeSingle();
@@ -50,7 +67,8 @@ export async function POST(req: Request) {
     if (name.length < 2 || phone.length < 7) return NextResponse.json({ error: 'Enter your full name and a valid phone number.' }, { status: 400 });
   }
 
-  const picked = selectQuestions();
+  const { data: imported } = await admin.from('question_bank').select('id,category,question_en,question_ne,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ne,option_b_ne,option_c_ne,option_d_ne,correct_option').eq('active', true);
+  const picked = imported?.length ? (selectImported(imported) || selectQuestions()) : selectQuestions();
   if (!picked || picked.length !== EXAM.total) {
     return NextResponse.json(
       { error: 'The exam question bank is incomplete. Please contact the administrator.' },

@@ -9,6 +9,7 @@ import { Calculator } from '@/components/agency/Calculator';
 import { Schemes } from '@/components/agency/Schemes';
 import { Profile } from '@/components/agency/Profile';
 import { PublicPortfolio } from '@/components/agency/PublicPortfolio';
+import { MfaGate } from '@/components/MfaGate';
 import { useAuth } from '@/lib/auth';
 
 const TABS = [
@@ -30,7 +31,7 @@ export default function Agency() {
 
   return (
     <Shell site="agency" right={<div className="flex items-center gap-3"><span className="hidden text-sm font-medium sm:inline">{profile.name}</span><Btn variant="ghost" onClick={signOut}>Log out</Btn></div>}>
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <MfaGate><div className="mx-auto max-w-7xl px-4 py-6">
         <div className="mb-6 flex flex-wrap gap-2" role="tablist">
           {TABS.map((x) => (
             <button key={x.k} role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}
@@ -49,7 +50,7 @@ export default function Agency() {
           : tab === 'tdi' ? <Calculator uid={profile.id} />
           : tab === 'scheme' ? <Schemes uid={profile.id} />
           : tab === 'profile' ? <Profile profile={profile} reload={reload} /> : <PublicPortfolio profile={profile} />}
-      </div>
+      </div></MfaGate>
     </Shell>
   );
 }

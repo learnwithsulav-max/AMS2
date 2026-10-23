@@ -1,25 +1,35 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LAYERS, LAYER_LABEL, LAYER_RATES, calcIncentive, monthEnd, monthStart, npr, weightPct, weighted } from '@/lib/rules';
+import { LAYERS, LAYER_LABEL, LAYER_RATES, calcIncentive, monthEnd, monthStart, npr, weightPct, weighted, type CompanyRateMap } from '@/lib/rules';
 import { Btn, Card, Field } from '../ui';
 
 export function Calculator({ uid }: { uid: string }) {
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(monthEnd());
   const [rows, setRows] = useState<any[]>([]);
+  const [companyRates, setCompanyRates] = useState<CompanyRateMap>({});
   const [err, setErr] = useState('');
   const [sim, setSim] = useState<any>({ premium: 100000, premium_mode: 'single', term_years: 10 });
 
   async function run() {
     setErr('');
-    const { data, error } = await supabase.rpc('team_production', { root: uid, d_from: from, d_to: to });
+    const [{ data, error }, { data: config }] = await Promise.all([
+      supabase.rpc('team_production_company', { root: uid, d_from: from, d_to: to }),
+      supabase.from('company_rules').select('company,tdi_rules,bdi_rules'),
+    ]);
     if (error) setErr(error.message); else setRows(data || []);
+    const parsed: CompanyRateMap = {};
+    for (const row of config || []) {
+      const normalize = (value: any) => Object.fromEntries(Object.entries(value || {}).filter(([key, rate]) => ['A','B','C','D'].includes(key) && Number.isFinite(Number(rate))).map(([key, rate]) => [key, Number(rate) / 100]));
+      parsed[String(row.company).toLowerCase()] = { TDI: normalize(row.tdi_rules), BDI: normalize(row.bdi_rules) };
+    }
+    setCompanyRates(parsed);
   }
   useEffect(() => { run(); /* eslint-disable-next-line */ }, []);
 
-  const tdi = calcIncentive(rows, 'TDI');
-  const bdi = calcIncentive(rows, 'BDI');
+  const tdi = calcIncentive(rows, 'TDI', companyRates);
+  const bdi = calcIncentive(rows, 'BDI', companyRates);
   const agents: Record<string, any> = {};
   for (const r of rows) {
     const a = (agents[r.agent_id] ||= { name: r.agent_name, layer: r.layer, raw: 0, w: 0 });
@@ -47,7 +57,7 @@ export function Calculator({ uid }: { uid: string }) {
               <tbody>
                 {LAYERS.map((l) => (
                   <tr key={l} className="border-t border-slate-100">
-                    <td className="py-1.5">{LAYER_LABEL[l]}</td><td>{LAYER_RATES[k][l] * 100}%</td>
+                    <td className="py-1.5">{LAYER_LABEL[l]}</td><td>{LAYER_RATES[k][l] * 100}% default</td>
                     <td>{npr(r.by[l].weighted)}</td><td className="text-right font-semibold">{npr(r.by[l].credit)}</td>
                   </tr>
                 ))}

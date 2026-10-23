@@ -28,6 +28,29 @@ export function useAuth() {
     return () => { on = false; sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
+  useEffect(() => {
+    if (!session) return;
+    const key = `lws:last-active:${session.user.id}`;
+    const stamp = () => { try { localStorage.setItem(key, String(Date.now())); } catch { /* storage may be disabled */ } };
+    const activity = () => {
+      const now = Date.now();
+      if (now - lastWrite > 15000) { lastWrite = now; stamp(); }
+    };
+    let lastWrite = 0;
+    stamp();
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((event) => window.addEventListener(event, activity, { passive: true }));
+    const timer = window.setInterval(() => {
+      let last = Date.now();
+      try { last = Number(localStorage.getItem(key)) || last; } catch { /* use current time */ }
+      if (Date.now() - last >= 15 * 60 * 1000) supabase.auth.signOut();
+    }, 15000);
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, activity));
+      window.clearInterval(timer);
+    };
+  }, [session]);
+
   return {
     session, profile, loading,
     reload: () => loadProfile(session?.user.id),

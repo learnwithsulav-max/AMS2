@@ -5,9 +5,11 @@ import { admin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
-async function audit(actor: string, action: string, targetId: string | null, meta: Record<string, unknown> = {}) {
+async function audit(actor: string, action: string, targetId: string | null, meta: Record<string, unknown> = {}, request?: Request) {
+  const ip = request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request?.headers.get('x-real-ip') || null;
+  const userAgent = request?.headers.get('user-agent')?.slice(0, 500) || null;
   const { error } = await admin.from('activity_log').insert({
-    actor, action, meta: { ...meta, target_id: targetId },
+    actor, action, meta: { ...meta, target_id: targetId, ip, user_agent: userAgent },
   });
   if (error) {
     console.error('Admin mutation succeeded, but its audit entry failed:', error.message);
@@ -114,6 +116,37 @@ export async function POST(request: Request) {
     action = decision === 'approve' ? 'exam_pass_approved' : 'exam_pass_rejected';
     targetId = id;
     meta = { decision };
+  } else if (body.action === 'update_subscription') {
+    const { id, plan, status } = body;
+    if (typeof id !== 'string' || !['trial','basic','pro'].includes(plan) || !['trial','active','expired','cancelled'].includes(status) || (status === 'active' && plan === 'trial')) {
+      return NextResponse.json({ error: 'Choose a valid agency plan and status.' }, { status: 400 });
+    }
+    const now = new Date();
+    const periodEnd = plan === 'basic' ? new Date(now.getFullYear(), now.getMonth() + 6, now.getDate()) : plan === 'pro' ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()) : null;
+    result = await admin.from('agency_subscriptions').update({ plan, status,
+      ...(status === 'active' ? { period_started_at: now.toISOString(), period_ends_at: periodEnd?.toISOString() } : {}),
+      updated_at: now.toISOString() }).eq('id', id).select('id').maybeSingle();
+    action = 'agency_subscription_updated'; targetId = id; meta = { plan, status, amount_npr: plan === 'basic' ? 499 : plan === 'pro' ? 899 : 0 };
+    const { data: subscription } = await admin.from('agency_subscriptions').select('agent_id').eq('id', id).maybeSingle();
+    if (subscription?.agent_id) await admin.from('profiles').update({ membership: status === 'active' && plan !== 'trial' ? 'premium' : 'free' }).eq('id', subscription.agent_id);
+  } else if (body.action === 'save_company_rule') {
+    const company = typeof body.company === 'string' ? body.company.trim().slice(0, 120) : '';
+    const tdsRate = Number(body.tds_rate);
+    if (!company || !Number.isFinite(tdsRate) || tdsRate < 0 || tdsRate > 100) return NextResponse.json({ error: 'Enter a company name and TDS rate from 0 to 100.' }, { status: 400 });
+    result = await admin.from('company_rules').upsert({ company, tds_rate: tdsRate, tdi_rules: body.tdi_rules || {}, bdi_rules: body.bdi_rules || {}, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: 'company' }).select('id').single();
+    action = 'company_rules_updated'; meta = { company, tds_rate: tdsRate };
+  } else if (body.action === 'create_coupon') {
+    const code = typeof body.code === 'string' ? body.code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32) : '';
+    const discount = Number(body.discount_percent);
+    if (code.length < 4 || !Number.isFinite(discount) || discount <= 0 || discount > 100) return NextResponse.json({ error: 'Enter a coupon code and discount between 1 and 100 percent.' }, { status: 400 });
+    const max = body.max_redemptions === '' || body.max_redemptions == null ? null : Number(body.max_redemptions);
+    if (max !== null && (!Number.isInteger(max) || max < 1)) return NextResponse.json({ error: 'Redemption limit must be a positive whole number.' }, { status: 400 });
+    result = await admin.from('coupons').insert({ code, discount_percent: discount, valid_until: body.valid_until || null, max_redemptions: max, created_by: user.id }).select('id').single();
+    action = 'coupon_created'; meta = { code, discount_percent: discount };
+  } else if (body.action === 'moderate_review') {
+    if (typeof body.id !== 'string' || typeof body.approved !== 'boolean') return NextResponse.json({ error: 'Provide a review and approval status.' }, { status: 400 });
+    result = await admin.from('portfolio_reviews').update({ approved: body.approved }).eq('id', body.id).select('id').maybeSingle();
+    action = body.approved ? 'portfolio_review_approved' : 'portfolio_review_rejected'; targetId = body.id; meta = { approved: body.approved };
   } else {
     return NextResponse.json({ error: 'Unsupported admin action.' }, { status: 400 });
   }
@@ -121,12 +154,12 @@ export async function POST(request: Request) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
 
-  const audited = await audit(user.email || user.id, action, targetId, meta);
+  const audited = await audit(user.email || user.id, action, targetId, meta, request);
   if (!audited) {
     return NextResponse.json({ error: 'The change was saved, but its audit record could not be written. Contact an administrator before retrying.' }, { status: 500 });
   }

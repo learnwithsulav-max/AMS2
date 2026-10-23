@@ -14,6 +14,11 @@ const TABLES = {
   activity_log: { columns: 'id,actor,action,meta,created_at', order: 'created_at', search: 'actor' },
   exam_pass_settings: { columns: 'id,price,currency,active,payment_instructions,updated_at', order: 'updated_at', search: null },
   exam_pass_orders: { columns: 'id,name,phone,amount,currency,payment_method,receipt_reference,status,reviewed_by,reviewed_at,created_at', order: 'created_at', search: 'name' },
+  agency_subscriptions: { columns: 'id,agent_id,plan,status,trial_started_at,trial_ends_at,period_started_at,period_ends_at,updated_at', order: 'updated_at', search: null },
+  company_rules: { columns: 'id,company,tds_rate,tdi_rules,bdi_rules,updated_by,updated_at', order: 'updated_at', search: 'company' },
+  coupons: { columns: 'id,code,discount_percent,valid_from,valid_until,max_redemptions,redemption_count,active,created_at', order: 'created_at', search: 'code' },
+  portfolio_leads: { columns: 'id,agent_id,name,phone,email,message,consent,created_at', order: 'created_at', search: 'name' },
+  portfolio_reviews: { columns: 'id,agent_id,reviewer_name,rating,review,approved,created_at', order: 'created_at', search: 'reviewer_name' },
 } as const;
 
 type TableName = keyof typeof TABLES;

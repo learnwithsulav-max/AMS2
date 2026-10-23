@@ -7,13 +7,15 @@ import { PLANS, calcIncentive, layersOf, monthEnd, monthStart, npr, planName, to
 import { STAGES } from '../agency/Kanban';
 import { schemeTone } from '../agency/Schemes';
 import { AuthCard } from '../AuthCard';
+import { MfaGate } from '../MfaGate';
 import { Shell } from '../Shell';
 import { Badge, Btn, Card, Field, cx } from '../ui';
 import { DataPager, DataTable } from './DataTable';
+import { QuestionImporter } from './QuestionImporter';
 
-const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log'];
+const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
-const TABS = ['Overview', 'Agents', 'Exams', 'Exam passes', 'Leads', 'Finance', 'Schemes', 'Logs'];
+const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Exam passes', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
 
 export default function AdminApp() {
   const { session, profile, loading, signOut } = useAuth();
@@ -21,7 +23,7 @@ export default function AdminApp() {
   if (loading) return <Shell site="admin"><p className="p-10 text-center text-slate-500">Loading...</p></Shell>;
   if (!session) return <Shell site="admin"><AuthCard title="Master admin" allowRegister={false} /></Shell>;
   if (profile?.role !== 'admin') return <Shell site="admin" right={out}><Card className="mx-auto my-16 max-w-md p-8 text-center"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-2 text-slate-600">This portal is for the master admin only.</p></Card></Shell>;
-  return <Shell site="admin" right={out}><Dashboard /></Shell>;
+  return <Shell site="admin" right={out}><MfaGate><Dashboard /></MfaGate></Shell>;
 }
 
 function Dashboard() {
@@ -138,8 +140,21 @@ function Dashboard() {
 
       {tab === 'Exam passes' && <ExamPassAdmin settings={(d.exam_pass_settings || [])[0]} orders={d.exam_pass_orders || []} mutate={mutate} onRefresh={load} />}
 
+      {tab === 'Subscriptions' && <DataTable name="agency-subscriptions" rows={d.agency_subscriptions || []} page={pages.agency_subscriptions || 1} total={counts.agency_subscriptions || 0} pageSize={PAGE_SIZE}
+        onPageChange={(page) => changePage('agency_subscriptions', page)} cols={[
+          { k: 'agent_id', h: 'Agent', render: (r) => name[r.agent_id] || r.agent_id, csv: (r) => name[r.agent_id] || r.agent_id },
+          { k: 'trial_ends_at', h: 'Trial ends', render: (r) => r.trial_ends_at?.slice(0, 10) || '-' },
+          { k: 'plan', h: 'Plan', render: (r) => <Sel v={r.plan} opts={['trial','basic','pro']} on={(v) => mutate({ action: 'update_subscription', id: r.id, plan: v, status: v === 'trial' ? 'trial' : 'active' })} /> },
+          { k: 'status', h: 'Status', render: (r) => <Sel v={r.status} opts={['trial','active','expired','cancelled']} on={(v) => mutate({ action: 'update_subscription', id: r.id, plan: r.plan, status: v })} /> },
+          { k: 'period_ends_at', h: 'Paid through', render: (r) => r.period_ends_at?.slice(0, 10) || '-' },
+        ]} />}
+
+      {tab === 'Configuration' && <Configuration companies={d.company_rules || []} coupons={d.coupons || []} mutate={mutate} />}
+
       {tab === 'Exams' && <DataTable name="exam-results" rows={A} page={pages.exam_attempts || 1} total={counts.exam_attempts || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('exam_attempts', page)} onSearch={(search) => searchTable('exam_attempts', search)} cols={examCols} />}
+
+      {tab === 'Question bank' && <QuestionImporter />}
 
       {tab === 'Leads' && (
         <div className="grid gap-3">
@@ -167,6 +182,17 @@ function Dashboard() {
           <DataPager page={pages.leads || 1} total={counts.leads || 0} pageSize={PAGE_SIZE} onPageChange={(page) => changePage('leads', page)} />
         </div>
       )}
+
+      {tab === 'Public leads' && <DataTable name="portfolio-leads" rows={d.portfolio_leads || []} page={pages.portfolio_leads || 1} total={counts.portfolio_leads || 0} pageSize={PAGE_SIZE}
+        onPageChange={(page) => changePage('portfolio_leads', page)} onSearch={(search) => searchTable('portfolio_leads', search)} cols={[
+          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' }, { k: 'email', h: 'Email' }, { k: 'message', h: 'Request' }, { k: 'agent_id', h: 'Agent', render: (r) => name[r.agent_id] || r.agent_id }, { k: 'created_at', h: 'Received', render: (r) => new Date(r.created_at).toLocaleString() },
+        ]} />}
+
+      {tab === 'Reviews' && <DataTable name="portfolio-reviews" rows={d.portfolio_reviews || []} page={pages.portfolio_reviews || 1} total={counts.portfolio_reviews || 0} pageSize={PAGE_SIZE}
+        onPageChange={(page) => changePage('portfolio_reviews', page)} cols={[
+          { k: 'reviewer_name', h: 'Reviewer' }, { k: 'rating', h: 'Rating' }, { k: 'review', h: 'Review' }, { k: 'agent_id', h: 'Agent', render: (r) => name[r.agent_id] || r.agent_id },
+          { k: 'approved', h: 'Status', render: (r) => r.approved ? <Btn variant="ghost" onClick={() => mutate({ action: 'moderate_review', id: r.id, approved: false })}>Published · hide</Btn> : <Btn onClick={() => mutate({ action: 'moderate_review', id: r.id, approved: true })}>Approve</Btn> },
+        ]} />}
 
       {tab === 'Finance' && <Finance P={P} POL={POL} inRange={inRange} name={name} from={from} to={to} setFrom={setFrom} setTo={setTo} reload={load} mutate={mutate} />}
       {tab === 'Schemes' && <Schemes P={P} schemes={d.schemes || []} status={d.scheme_status || []} mutate={mutate} />}
@@ -205,6 +231,37 @@ function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any;
     </section>
   </div>;
 }
+
+function Configuration({ companies, coupons, mutate }: { companies: any[]; coupons: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean> }) {
+  const [company, setCompany] = useState(''); const [tds, setTds] = useState('20');
+  const [tdi, setTdi] = useState('{"A":100,"B":4,"C":2,"D":1}'); const [bdi, setBdi] = useState('{"A":100,"B":4,"C":2,"D":1}');
+  const [code, setCode] = useState(''); const [discount, setDiscount] = useState(''); const [until, setUntil] = useState('');
+  const [error, setError] = useState('');
+  return <div className="grid gap-6 lg:grid-cols-2">
+    <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Company tax rules</h2><p className="mt-1 text-sm text-slate-600">TDS is applied to the gross commission when a policy is saved.</p></div>
+      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); setError(''); try { const tdiRules = JSON.parse(tdi); const bdiRules = JSON.parse(bdi); if (await mutate({ action: 'save_company_rule', company, tds_rate: Number(tds), tdi_rules: tdiRules, bdi_rules: bdiRules })) { setCompany(''); setTds('20'); } } catch { setError('Enter valid JSON for the TDI and BDI layer percentages.'); } }}>
+        <Field label="Insurance company" required value={company} onChange={(e: any) => setCompany(e.target.value)} />
+        <Field label="TDS rate (%)" type="number" min="0" max="100" step="0.01" required value={tds} onChange={(e: any) => setTds(e.target.value)} />
+        <label className="grid gap-1 text-sm font-medium">TDI layer rates (%)<textarea rows={2} value={tdi} onChange={(e) => setTdi(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal" /></label>
+        <label className="grid gap-1 text-sm font-medium">BDI layer rates (%)<textarea rows={2} value={bdi} onChange={(e) => setBdi(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal" /></label>
+        <p className="text-xs text-slate-500">Use JSON such as {'{"A":100,"B":4,"C":2,"D":1}'}; rates are percentages.</p>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <Btn type="submit">Save company rule</Btn>
+      </form>
+      <DataTable name="company-rules" rows={companies} cols={[{ k: 'company', h: 'Company' }, { k: 'tds_rate', h: 'TDS %' }, { k: 'updated_at', h: 'Updated', render: (r) => r.updated_at?.slice(0, 10) }]} />
+    </Card>
+    <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Coupon codes</h2><p className="mt-1 text-sm text-slate-600">Coupons are stored for subscription and checkout validation.</p></div>
+      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); if (await mutate({ action: 'create_coupon', code, discount_percent: Number(discount), valid_until: until || null })) { setCode(''); setDiscount(''); setUntil(''); } }}>
+        <Field label="Code" required value={code} onChange={(e: any) => setCode(e.target.value.toUpperCase())} />
+        <Field label="Discount (%)" type="number" min="1" max="100" required value={discount} onChange={(e: any) => setDiscount(e.target.value)} />
+        <Field label="Expires (optional)" type="date" value={until} onChange={(e: any) => setUntil(e.target.value)} />
+        <Btn type="submit">Create coupon</Btn>
+      </form>
+      <DataTable name="coupons" rows={coupons} cols={[{ k: 'code', h: 'Code' }, { k: 'discount_percent', h: 'Discount %' }, { k: 'redemption_count', h: 'Used' }, { k: 'valid_until', h: 'Expires', render: (r) => r.valid_until?.slice(0, 10) || 'Never' }]} />
+    </Card>
+  </div>;
+}
+
 const examCols = [
   { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' },
   { k: 'score', h: 'Marks', render: (r: any) => (r.submitted_at ? `${r.score}/${r.max_marks}` : 'In progress'), csv: (r: any) => (r.submitted_at ? r.score : '') },

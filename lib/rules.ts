@@ -41,8 +41,8 @@ export const LAYER_LABEL: Record<Layer, string> = {
 };
 
 // rows: [{layer, premium, premium_mode, term_years}]
-export function calcIncentive(rows: any[], kind: 'TDI' | 'BDI') {
-  const rates = LAYER_RATES[kind];
+export type CompanyRateMap = Record<string, Partial<Record<'TDI' | 'BDI', Partial<Record<Layer, number>>>>>;
+export function calcIncentive(rows: any[], kind: 'TDI' | 'BDI', companyRates: CompanyRateMap = {}) {
   const by: Record<Layer, { count: number; raw: number; weighted: number; credit: number }> = {
     A: { count: 0, raw: 0, weighted: 0, credit: 0 }, B: { count: 0, raw: 0, weighted: 0, credit: 0 },
     C: { count: 0, raw: 0, weighted: 0, credit: 0 }, D: { count: 0, raw: 0, weighted: 0, credit: 0 },
@@ -50,10 +50,13 @@ export function calcIncentive(rows: any[], kind: 'TDI' | 'BDI') {
   for (const r of rows) {
     const b = by[r.layer as Layer];
     if (!b) continue;
-    b.count++; b.raw += Number(r.premium || 0); b.weighted += weighted(r);
+    const amount = weighted(r);
+    const rates = companyRates[String(r.company || '').toLowerCase()]?.[kind] || {};
+    const rate = rates[r.layer as Layer] ?? LAYER_RATES[kind][r.layer as Layer];
+    b.count++; b.raw += Number(r.premium || 0); b.weighted += amount; b.credit += amount * rate;
   }
   let totalWeighted = 0, totalCredit = 0;
-  for (const l of LAYERS) { by[l].credit = by[l].weighted * rates[l]; totalWeighted += by[l].weighted; totalCredit += by[l].credit; }
+  for (const l of LAYERS) { totalWeighted += by[l].weighted; totalCredit += by[l].credit; }
   return { by, totalWeighted, totalCredit };
 }
 

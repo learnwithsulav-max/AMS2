@@ -12,6 +12,9 @@ const NAV: [SiteKey, string][] = [['root', 'nav_home'], ['agency', 'nav_agency']
 export function Shell({ site, right, children }: { site: SiteKey; right?: ReactNode; children: ReactNode }) {
   const { t } = useI18n();
   useEffect(() => { document.title = site === 'root' ? BRAND.name : `${TITLES[site]} | ${BRAND.name}`; }, [site]);
+  useEffect(() => {
+    if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch((error) => console.warn('Offline support could not be enabled:', error));
+  }, []);
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-200 bg-white">
