@@ -30,7 +30,8 @@ for the app's dependency root.
 5. **Deploy**: push to GitHub, import into Vercel, and add the Supabase variables plus `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np`.
    In Vercel > Domains add `sulavs.com.np`, `www`, `agency`, `exam` and `admin`.
 6. **Supabase Auth URLs**: set the Site URL to `https://sulavs.com.np` and add `https://sulavs.com.np/**`,
-   `https://agency.sulavs.com.np/**`, `https://exam.sulavs.com.np/**`, and `https://admin.sulavs.com.np/**` to the redirect URL allowlist.
+   `https://www.sulavs.com.np/**`, `https://agency.sulavs.com.np/**`, `https://exam.sulavs.com.np/**`,
+   and `https://admin.sulavs.com.np/**` to the redirect URL allowlist.
 7. **Install as an app**: visit the domain in a mobile browser and choose “Add to Home Screen” or “Install app”.
    The installed app opens the same HTTPS website in standalone mode.
 8. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
