@@ -14,13 +14,17 @@ import { DataPager, DataTable } from './DataTable';
 import { QuestionImporter } from './QuestionImporter';
 import { MaskedPhone, maskPhone } from '@/components/MaskedPhone';
 
-const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'billing_orders', 'question_reports', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
+const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'billing_orders', 'question_reports', 'agency_feedback', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
-const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Question reports', 'Exam passes', 'Billing queue', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
+const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Feedback inbox', 'Broadcast', 'System health', 'Question reports', 'Agent feedback', 'Exam passes', 'Billing queue', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
 
 export default function AdminApp() {
   const { session, profile, loading, signOut } = useAuth();
-  const out = <Btn variant="ghost" onClick={signOut}>Log out</Btn>;
+  const logout = async () => {
+    if (session?.access_token) await fetch('/api/admin/session', { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } }).catch(() => undefined);
+    await signOut();
+  };
+  const out = <Btn variant="ghost" onClick={logout}>Log out</Btn>;
   if (loading) return <Shell site="admin"><p className="p-10 text-center text-slate-500">Loading...</p></Shell>;
   if (!session) return <Shell site="admin"><AuthCard title="Master admin" allowRegister={false} /></Shell>;
   if (profile?.role !== 'admin') return <Shell site="admin" right={out}><Card className="mx-auto my-16 max-w-md p-8 text-center"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-2 text-slate-600">This portal is for the master admin only.</p></Card></Shell>;
@@ -141,8 +145,14 @@ function Dashboard() {
 
       {tab === 'Exam passes' && <ExamPassAdmin settings={(d.exam_pass_settings || [])[0]} orders={d.exam_pass_orders || []} mutate={mutate} onRefresh={load} />}
       {tab === 'Billing queue' && <BillingQueue orders={d.billing_orders || []} mutate={mutate} />}
+      {tab === 'Feedback inbox' && <FeedbackInbox reports={d.question_reports||[]} feedback={d.agency_feedback||[]} leads={d.portfolio_leads||[]} reviews={d.portfolio_reviews||[]} mutate={mutate} />}
+      {tab === 'Broadcast' && <BroadcastCenter />}
+      {tab === 'System health' && <HealthPanel />}
       {tab === 'Question reports' && <DataTable name="question-reports" rows={d.question_reports || []} page={pages.question_reports || 1} total={counts.question_reports || 0} pageSize={PAGE_SIZE} onPageChange={(page)=>changePage('question_reports',page)} cols={[
         {k:'question_id',h:'Question ID'},{k:'report_type',h:'Issue'},{k:'details',h:'Details'},{k:'attempt_id',h:'Attempt'},{k:'created_at',h:'Reported',render:(r)=>r.created_at?.slice(0,16).replace('T',' ')},
+      ]} />}
+      {tab === 'Agent feedback' && <DataTable name="agent-feedback" rows={d.agency_feedback || []} page={pages.agency_feedback || 1} total={counts.agency_feedback || 0} pageSize={PAGE_SIZE} onPageChange={(page)=>changePage('agency_feedback',page)} onSearch={(search)=>searchTable('agency_feedback',search)} cols={[
+        {k:'title',h:'Title'},{k:'kind',h:'Type'},{k:'category',h:'Category'},{k:'details',h:'Details'},{k:'status',h:'Status',render:(r)=><Sel v={r.status} opts={['new','reviewing','planned','completed','closed']} on={(v)=>mutate({action:'update_agency_feedback',id:r.id,status:v})}/>},{k:'created_at',h:'Submitted',render:(r)=>r.created_at?.slice(0,10)},
       ]} />}
 
       {tab === 'Subscriptions' && <DataTable name="agency-subscriptions" rows={d.agency_subscriptions || []} page={pages.agency_subscriptions || 1} total={counts.agency_subscriptions || 0} pageSize={PAGE_SIZE}
@@ -203,7 +213,7 @@ function Dashboard() {
       {tab === 'Schemes' && <Schemes P={P} schemes={d.schemes || []} status={d.scheme_status || []} mutate={mutate} />}
       {tab === 'Logs' && <DataTable name="activity-log" rows={d.activity_log || []} page={pages.activity_log || 1} total={counts.activity_log || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('activity_log', page)} onSearch={(search) => searchTable('activity_log', search)} cols={[
-        { k: 'created_at', h: 'Time', render: (r) => new Date(r.created_at).toLocaleString() }, { k: 'actor', h: 'Who' }, { k: 'action', h: 'Action' },
+        { k: 'created_at', h: 'Time', render: (r) => new Date(r.created_at).toLocaleString() }, { k: 'actor', h: 'Who' }, { k: 'actor_id', h: 'Admin ID' }, { k: 'action', h: 'Action' },
         { k: 'meta', h: 'Details', render: (r) => JSON.stringify(r.meta || {}) },
       ]} />}
     </div>
@@ -214,6 +224,25 @@ function BillingQueue({orders,mutate}:{orders:any[];mutate:(payload:Record<strin
   const [error,setError]=useState('');
   async function openVoucher(id:string){try{const r=await adminGet<{url:string}>(`/api/admin/billing/${id}/voucher`);window.open(r.url,'_blank','noopener,noreferrer');}catch(e){setError(e instanceof Error?e.message:'Could not open voucher.');}}
   return <div className="grid gap-3"><h2 className="text-lg font-bold">Manual QR payment reviews</h2>{error&&<p role="alert" className="text-sm text-red-700">{error}</p>}{orders.length===0&&<Card className="p-5 text-sm">No payments submitted.</Card>}{orders.map(o=><Card key={o.id} className="grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto]"><div><b>{o.package_code||o.product}</b><p className="text-sm text-slate-600">NPR {Number(o.amount).toLocaleString()} · {o.provider}</p><p className="text-xs text-slate-500">{o.metadata?.name||o.user_id||'Student'} · {o.metadata?.phone?<MaskedPhone value={o.metadata.phone}/>:''}</p></div><div><p className="text-sm">{o.status} · {new Date(o.created_at).toLocaleString()}</p><Btn variant="ghost" className="mt-2" onClick={()=>openVoucher(o.id)}>View watermarked voucher</Btn></div>{o.status==='pending'?<div className="flex items-center gap-2"><Btn onClick={()=>mutate({action:'review_billing_order',id:o.id,decision:'approve'})}>Approve</Btn><Btn variant="ghost" onClick={()=>mutate({action:'review_billing_order',id:o.id,decision:'reject'})}>Reject</Btn></div>:<span className="text-sm text-slate-500">Reviewed {o.reviewed_at?.slice(0,10)||''}</span>}</Card>)}</div>;
+}
+
+function FeedbackInbox({reports,feedback,leads,reviews,mutate}:{reports:any[];feedback:any[];leads:any[];reviews:any[];mutate:(payload:Record<string,unknown>)=>Promise<boolean>}){
+  const rows=[...feedback.map(r=>({...r,source:'Agent portal'})),...reports.map(r=>({...r,source:'Exam question report',title:r.report_type,details:r.details||'',status:r.status||'pending'})),...leads.map(r=>({...r,source:'Public portfolio inquiry',title:r.name,details:r.message||'',status:'new'})),...reviews.map(r=>({...r,source:'Portfolio review',title:`${r.reviewer_name} · ${r.rating}/5`,details:r.review||'',status:r.approved?'published':'awaiting review'}))].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  return <div className="grid gap-3"><header><h2 className="text-xl font-bold">Multi-portal feedback inbox</h2><p className="text-sm text-slate-600">Agent requests, exam question reports, portfolio inquiries, and reviews. Personal contact data is omitted here.</p></header>{rows.slice(0,300).map((r,i)=><Card key={`${r.source}-${r.id||i}`} className="grid gap-2 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><span className="mr-2 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-[#0A4F8A]">{r.source}</span><b>{r.title||'Submission'}</b></div><div className="flex items-center gap-2 text-xs text-slate-500">{r.created_at?.slice(0,16).replace('T',' ')}{r.source==='Agent portal'?<Sel v={r.status} opts={['new','reviewing','planned','completed','closed']} on={v=>mutate({action:'update_agency_feedback',id:r.id,status:v})}/>:r.source==='Exam question report'?<Sel v={r.status} opts={['pending','in_progress','resolved']} on={v=>mutate({action:'update_question_report',id:r.id,status:v})}/>:<span>{r.status}</span>}</div></div><p className="whitespace-pre-wrap text-sm text-slate-700">{r.details||'No message provided.'}</p></Card>)}{!rows.length&&<Card className="p-5 text-sm text-slate-600">No feedback or inquiries yet.</Card>}</div>;
+}
+
+function BroadcastCenter(){
+  const [audience,setAudience]=useState('all_registered');const [subject,setSubject]=useState('');const [message,setMessage]=useState('');const [confirm,setConfirm]=useState(false);const [busy,setBusy]=useState(false);const [result,setResult]=useState('');
+  async function send(e:React.FormEvent){e.preventDefault();if(!confirm)return;setBusy(true);setResult('');try{const r=await adminPost<{queued:number}>('/api/admin/broadcast',{audience,subject,message});setResult(`Announcement queued for ${r.queued} email recipient(s). Delivery will follow configured notification providers.`);setSubject('');setMessage('');setConfirm(false);}catch(e){setResult(e instanceof Error?e.message:'Could not queue announcement.');}finally{setBusy(false);}}
+  return <Card className="mx-auto grid max-w-3xl gap-4 p-5"><div><h2 className="text-xl font-bold">Email announcement</h2><p className="mt-1 text-sm text-slate-600">Queues one email per account with an available email address through the existing notification worker. Use this for important service updates. WhatsApp broadcast requires an approved WhatsApp Business provider configuration.</p></div><form onSubmit={send} className="grid gap-3"><Field label="Audience" as="select" value={audience} onChange={(e:any)=>setAudience(e.target.value)}><option value="all_registered">All registered portal users</option><option value="agents">Agency agents</option></Field><Field label="Subject" required maxLength={120} value={subject} onChange={(e:any)=>setSubject(e.target.value)}/><label className="grid gap-1 text-sm font-medium">Message<textarea required minLength={5} maxLength={3000} rows={7} value={message} onChange={e=>setMessage(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-normal"/></label><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirm} onChange={e=>setConfirm(e.target.checked)}/>I reviewed this announcement and want to queue it for the selected audience.</label><Btn type="submit" disabled={busy||!confirm}>{busy?'Queueing…':'Queue announcement'}</Btn></form>{result&&<p role="status" className="text-sm text-slate-700">{result}</p>}</Card>
+}
+
+function HealthPanel(){
+  const [stats,setStats]=useState<Record<string,number>|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{setBusy(true);try{const result=await adminGet<{stats:Record<string,number>}>('/api/admin/health');setStats(result.stats);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not load system health.');}finally{setBusy(false);}},[]);
+  useEffect(()=>{void load();},[load]);
+  const values:Record<string,string>={agents:'Registered agents',active_tenants:'Active agency subscriptions',pending_vouchers:'Pending payment reviews',storage_objects:'Stored objects',storage_bytes:'Storage used',sessions_started_today:'Sessions started today',admin_sessions_active:'Admin sessions active'};
+  return <div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-xl font-bold">Database health</h2><p className="text-sm text-slate-600">Live aggregate counts from Supabase. No client records or file names are exposed here.</p></div><Btn variant="ghost" disabled={busy} onClick={()=>void load()}>{busy?'Refreshing…':'Refresh'}</Btn></div>{error&&<p role="alert" className="text-sm text-red-700">{error}</p>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(values).map(([key,label])=><Card key={key} className="p-4"><p className="text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-extrabold">{stats?key==='storage_bytes'?`${(stats[key]/1024/1024).toFixed(2)} MB`:(stats[key]||0).toLocaleString():'—'}</p>{key==='storage_bytes'&&stats&&<p className="text-xs text-slate-500">{(stats[key]||0).toLocaleString()} bytes</p>}</Card>)}</div><p className="text-xs text-slate-500">Sessions started today counts Supabase Auth sessions created since midnight UTC; it is an activity indicator and may include expired tokens.</p></div>
 }
 
 function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any; orders: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean>; onRefresh: () => Promise<void> }) {

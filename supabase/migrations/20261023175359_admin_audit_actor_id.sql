@@ -1,0 +1,2 @@
+alter table public.activity_log add column if not exists actor_id uuid references auth.users(id) on delete set null;
+create index if not exists activity_log_actor_id_created_idx on public.activity_log(actor_id,created_at desc) where actor_id is not null;

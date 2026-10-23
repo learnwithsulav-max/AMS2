@@ -5,11 +5,11 @@ import { admin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
-async function audit(actor: string, action: string, targetId: string | null, meta: Record<string, unknown> = {}, request?: Request) {
+async function audit(actor: string, actorId: string, action: string, targetId: string | null, meta: Record<string, unknown> = {}, request?: Request) {
   const ip = request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request?.headers.get('x-real-ip') || null;
   const userAgent = request?.headers.get('user-agent')?.slice(0, 500) || null;
   const { error } = await admin.from('activity_log').insert({
-    actor, action, meta: { ...meta, target_id: targetId, ip, user_agent: userAgent },
+    actor, actor_id: actorId, action, meta: { ...meta, target_id: targetId, ip, user_agent: userAgent },
   });
   if (error) {
     console.error('Admin mutation succeeded, but its audit entry failed:', error.message);
@@ -183,6 +183,14 @@ export async function POST(request: Request) {
     if (typeof body.id !== 'string' || typeof body.approved !== 'boolean') return NextResponse.json({ error: 'Provide a review and approval status.' }, { status: 400 });
     result = await admin.from('portfolio_reviews').update({ approved: body.approved }).eq('id', body.id).select('id').maybeSingle();
     action = body.approved ? 'portfolio_review_approved' : 'portfolio_review_rejected'; targetId = body.id; meta = { approved: body.approved };
+  } else if (body.action === 'update_agency_feedback') {
+    if(typeof body.id!=='string'||!['new','reviewing','planned','completed','closed'].includes(body.status))return NextResponse.json({error:'Choose a feedback entry and valid status.'},{status:400});
+    result=await admin.from('agency_feedback').update({status:body.status,updated_at:new Date().toISOString()}).eq('id',body.id).select('id').maybeSingle();
+    action='agency_feedback_status_updated';targetId=body.id;meta={status:body.status};
+  } else if (body.action === 'update_question_report') {
+    if(typeof body.id!=='string'||!['pending','in_progress','resolved'].includes(body.status))return NextResponse.json({error:'Choose a report and valid status.'},{status:400});
+    result=await admin.from('question_reports').update({status:body.status}).eq('id',body.id).select('id').maybeSingle();
+    action='question_report_status_updated';targetId=body.id;meta={status:body.status};
   } else {
     return NextResponse.json({ error: 'Unsupported admin action.' }, { status: 400 });
   }
@@ -190,12 +198,12 @@ export async function POST(request: Request) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
 
-  const audited = await audit(user.email || user.id, action, targetId, meta, request);
+  const audited = await audit(user.email || user.id, user.id, action, targetId, meta, request);
   if (!audited) {
     return NextResponse.json({ error: 'The change was saved, but its audit record could not be written. Contact an administrator before retrying.' }, { status: 500 });
   }

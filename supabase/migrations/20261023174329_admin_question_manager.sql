@@ -1,0 +1,2 @@
+alter table public.question_bank add column if not exists difficulty text not null default 'medium' check (difficulty in ('easy','medium','hard'));
+alter table public.question_bank add column if not exists updated_at timestamptz not null default now();

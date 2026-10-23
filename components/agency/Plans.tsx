@@ -48,6 +48,7 @@ export function Plans({ uid }: { uid: string }) {
       client_name: form.client_name, plan_type: form.plan_type, premium_mode: form.premium_mode,
       term_years: Number(form.term_years), premium: Number(form.premium), sum_assured: form.sum_assured ? Number(form.sum_assured) : null,
       issue_date: form.issue_date, next_due_date: form.next_due_date || null, collection_date: form.collection_date || null,
+      grace_period_end:form.grace_period_end||null,maturity_date:form.maturity_date||null,survival_benefit_date:form.survival_benefit_date||null,
       commission_gross: Number(form.commission_gross || 0),
     };
     if (!navigator.onLine) {
@@ -143,6 +144,9 @@ export function Plans({ uid }: { uid: string }) {
             <Field label="Issue date" type="date" required value={form.issue_date} onChange={set('issue_date')} />
             <Field label="Next due date" type="date" value={form.next_due_date || ''} onChange={set('next_due_date')} />
             <Field label="Collection date" type="date" value={form.collection_date || ''} onChange={set('collection_date')} />
+            <Field label="Grace period ends" type="date" value={form.grace_period_end || ''} onChange={set('grace_period_end')} />
+            <Field label="Maturity date" type="date" value={form.maturity_date || ''} onChange={set('maturity_date')} />
+            <Field label="Survival benefit date" type="date" value={form.survival_benefit_date || ''} onChange={set('survival_benefit_date')} />
             <p className="text-sm text-slate-600 sm:col-span-2">
               Counts as {weightPct(form.premium_mode, Number(form.term_years)) * 100}% of the premium for TDI and BDI.
             </p>

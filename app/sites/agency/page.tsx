@@ -12,10 +12,14 @@ import { PublicPortfolio } from '@/components/agency/PublicPortfolio';
 import { MfaGate } from '@/components/MfaGate';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { AgencyInsights } from '@/components/agency/AgencyInsights';
+import { AgencyFeedback } from '@/components/agency/AgencyFeedback';
+import { TeamNetwork } from '@/components/agency/TeamNetwork';
 
 const TABS = [
   { k: 'leads', l: 'Leads' }, { k: 'plans', l: 'Plans and policies' },
-  { k: 'tdi', l: 'TDI and BDI', premium: true }, { k: 'scheme', l: 'Monthly scheme', premium: true }, { k: 'profile', l: 'Profile' }, { k: 'portfolio', l: 'Public portfolio' },
+  { k: 'tdi', l: 'TDI and BDI', premium: true }, { k: 'team', l: 'Team network', premium: true }, { k: 'scheme', l: 'Monthly scheme', premium: true }, { k: 'profile', l: 'Profile' }, { k: 'portfolio', l: 'Public portfolio' },
+  { k: 'insights', l: 'Performance & calendar' }, { k: 'feedback', l: 'Feedback' },
 ];
 
 export default function Agency() {
@@ -54,8 +58,12 @@ export default function Agency() {
         ) : tab === 'leads' ? <Kanban uid={profile.id} />
           : tab === 'plans' ? <Plans uid={profile.id} />
           : tab === 'tdi' ? <Calculator uid={profile.id} />
+          : tab === 'team' ? <TeamNetwork uid={profile.id} />
           : tab === 'scheme' ? <Schemes uid={profile.id} />
-          : tab === 'profile' ? <Profile profile={profile} reload={reload} /> : <PublicPortfolio profile={profile} />}
+          : tab === 'profile' ? <Profile profile={profile} reload={reload} />
+          : tab === 'portfolio' ? <PublicPortfolio profile={profile} />
+          : tab === 'insights' ? <AgencyInsights uid={profile.id} />
+          : <AgencyFeedback uid={profile.id} />}
       </div></MfaGate>
     </Shell>
   );
