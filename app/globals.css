@@ -6,11 +6,15 @@
   --color-brand: #0A4F8A;
   --color-gold: #F15A24;
   --color-ember: #F15A24;
-  --color-paper: #F6F8FC;
+  --color-paper: #F7FAFC;
+  --color-ink: #2D3748;
+  --color-slate-50: #F7FAFC;
+  --color-slate-600: #2D3748;
+  --color-slate-700: #2D3748;
   --font-sans: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, sans-serif;
 }
 
 html { font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, sans-serif; }
-body { @apply bg-paper text-navy antialiased; }
+body { @apply bg-paper text-ink antialiased; }
 @media print { header, footer, .no-print { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

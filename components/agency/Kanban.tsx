@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { PLANS, npr, today } from '@/lib/rules';
 import { Badge, Btn, Card, Field, Modal } from '../ui';
+import { MaskedPhone } from '@/components/MaskedPhone';
 
 export const STAGES = ['New Lead', 'Contacted', 'Proposal Sent', 'Follow-up', 'Closed Won', 'Closed Lost'];
 const stageTone: Record<string, string> = { 'Closed Won': 'green', 'Closed Lost': 'red' };
@@ -78,7 +79,7 @@ export function Kanban({ uid }: { uid: string }) {
                   <Card key={l.id} draggable onDragStart={(e: any) => e.dataTransfer.setData('text/plain', l.id)}
                     onClick={() => setEdit(l)} className="cursor-grab p-3 text-sm hover:border-brand">
                     <p className="font-semibold">{l.name}</p>
-                    {l.phone && <p className="text-slate-500">{l.phone}</p>}
+                    {l.phone && <p className="text-slate-500"><MaskedPhone value={l.phone} /></p>}
                     {l.plan_interest && <p className="mt-1 text-slate-600">{PLANS.find((p) => p.id === l.plan_interest)?.name}</p>}
                     {l.est_premium && <p className="text-slate-600">{npr(l.est_premium)}</p>}
                     <div className="mt-2 flex flex-wrap gap-1">{dueChip(l.follow_up_date)}{dueChip(l.renewal_date, 'Renewal')}</div>

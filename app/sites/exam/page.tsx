@@ -8,7 +8,7 @@ export default function ExamPortal() {
   const { t } = useI18n();
   return (
     <Shell site="exam">
-      <Card className="mx-auto mt-5 max-w-5xl border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-none">
+      <Card className="mx-auto mt-5 max-w-5xl border-gold/30 bg-gold/10 px-4 py-3 text-sm text-navy shadow-none">
         {t('exam_disclaimer')}
       </Card>
       <ExamApp />

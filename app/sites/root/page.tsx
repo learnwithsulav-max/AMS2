@@ -30,9 +30,9 @@ export default function Landing() {
             <h1 className="max-w-2xl text-3xl font-extrabold leading-tight sm:text-5xl sm:leading-[1.1]">{t('hero_title')}</h1>
             <p className="mt-5 max-w-xl text-lg text-slate-300">{t('hero_sub')}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <LinkBtn href={siteUrl('exam')}>{t('cta_exam')}</LinkBtn>
+              <LinkBtn href={siteUrl('exam')} variant="cta">{t('cta_exam')}</LinkBtn>
               <LinkBtn href={siteUrl('agency')} variant="ghost">{t('cta_agency')}</LinkBtn>
-              <LinkBtn href={BRAND.links.whatsapp} variant="gold" target="_blank" rel="noopener noreferrer">{t('cta_wa')}</LinkBtn>
+              <LinkBtn href={BRAND.links.whatsapp} variant="cta" target="_blank" rel="noopener noreferrer">{t('cta_wa')}</LinkBtn>
             </div>
           </div>
           <Card className="p-6 text-navy">
@@ -41,7 +41,7 @@ export default function Landing() {
               <img src="/logo.png" alt="Learn With Sulav" className="h-36 w-auto" />
             </div>
             <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-slate-600">
-              {t('trust_badge')}
+              {BRAND.trustBadge}
             </p>
             <p className="mt-5 text-sm font-semibold text-slate-500">{t('portals')}</p>
             <ul className="mt-2 divide-y divide-slate-100">

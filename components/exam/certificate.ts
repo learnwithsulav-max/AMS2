@@ -1,8 +1,8 @@
 // Draws the learner's details onto the supplied certificate template.
 // Coordinates are in pixels of the 1754 x 1241 template (150 dpi A4 landscape).
 const W = 1754;
-const NAVY = '#1B3A73';
-const BOX_BG = '#F7F5F0';
+const NAVY = '#0A4F8A';
+const BOX_BG = '#F7FAFC';
 
 function load(src: string) {
   return new Promise<HTMLImageElement>((res, rej) => {

@@ -35,7 +35,7 @@ export default function Agency() {
         <div className="mb-6 flex flex-wrap gap-2" role="tablist">
           {TABS.map((x) => (
             <button key={x.k} role="tab" aria-selected={tab === x.k} onClick={() => setTab(x.k)}
-              className={cx('rounded-lg px-4 py-2 text-sm font-semibold', tab === x.k ? 'bg-navy text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
+              className={cx('rounded-lg px-4 py-2 text-sm font-semibold', tab === x.k ? 'bg-gold text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
               {x.l}{x.premium && !premium ? ' (premium)' : ''}
             </button>
           ))}

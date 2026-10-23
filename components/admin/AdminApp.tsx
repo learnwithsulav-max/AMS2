@@ -12,6 +12,7 @@ import { Shell } from '../Shell';
 import { Badge, Btn, Card, Field, cx } from '../ui';
 import { DataPager, DataTable } from './DataTable';
 import { QuestionImporter } from './QuestionImporter';
+import { MaskedPhone, maskPhone } from '@/components/MaskedPhone';
 
 const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
@@ -106,7 +107,7 @@ function Dashboard() {
       <div className="no-print mb-6 flex flex-wrap gap-2" role="tablist">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cx('rounded-lg px-4 py-2 text-sm font-semibold', tab === t ? 'bg-navy text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>{t}</button>
+            className={cx('rounded-lg px-4 py-2 text-sm font-semibold', tab === t ? 'bg-gold text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>{t}</button>
         ))}
       </div>
 
@@ -130,7 +131,7 @@ function Dashboard() {
       {tab === 'Agents' && (
         <DataTable name="agents" rows={P} page={pages.profiles || 1} total={counts.profiles || 0} pageSize={PAGE_SIZE}
           onPageChange={(page) => changePage('profiles', page)} onSearch={(search) => searchTable('profiles', search)} cols={[
-          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' }, { k: 'license_no', h: 'License' }, { k: 'branch', h: 'Branch' },
+          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone', render: (r) => <MaskedPhone value={r.phone} />, csv: (r) => maskPhone(r.phone) }, { k: 'license_no', h: 'License' }, { k: 'branch', h: 'Branch' },
           { k: 'referral_code', h: 'Referral code' }, { k: 'upline', h: 'Upline', render: (r) => name[r.upline_id] || '-', csv: (r) => name[r.upline_id] || '' },
           { k: 'membership', h: 'Membership', render: (r) => <Sel v={r.membership} opts={['free', 'premium']} on={(v) => mutate({ action: 'update_agent', id: r.id, membership: v })} /> },
           { k: 'status', h: 'Status', render: (r) => <Sel v={r.status} opts={['active', 'suspended']} on={(v) => mutate({ action: 'update_agent', id: r.id, status: v })} /> },
@@ -185,7 +186,7 @@ function Dashboard() {
 
       {tab === 'Public leads' && <DataTable name="portfolio-leads" rows={d.portfolio_leads || []} page={pages.portfolio_leads || 1} total={counts.portfolio_leads || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('portfolio_leads', page)} onSearch={(search) => searchTable('portfolio_leads', search)} cols={[
-          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' }, { k: 'email', h: 'Email' }, { k: 'message', h: 'Request' }, { k: 'agent_id', h: 'Agent', render: (r) => name[r.agent_id] || r.agent_id }, { k: 'created_at', h: 'Received', render: (r) => new Date(r.created_at).toLocaleString() },
+          { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone', render: (r) => <MaskedPhone value={r.phone} />, csv: (r) => maskPhone(r.phone) }, { k: 'email', h: 'Email' }, { k: 'message', h: 'Request' }, { k: 'agent_id', h: 'Agent', render: (r) => name[r.agent_id] || r.agent_id }, { k: 'created_at', h: 'Received', render: (r) => new Date(r.created_at).toLocaleString() },
         ]} />}
 
       {tab === 'Reviews' && <DataTable name="portfolio-reviews" rows={d.portfolio_reviews || []} page={pages.portfolio_reviews || 1} total={counts.portfolio_reviews || 0} pageSize={PAGE_SIZE}
@@ -224,7 +225,7 @@ function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any;
     </form>
     <section><div className="mb-3 flex items-center justify-between"><h2 className="font-bold">Receipt requests</h2><Btn variant="ghost" onClick={onRefresh}>Refresh receipts</Btn></div>
       {!orders.length ? <Card className="p-5 text-sm text-slate-600">No receipt requests yet.</Card> : <div className="grid gap-3">{orders.map((order) => <Card key={order.id} className="grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
-        <div><p className="font-semibold">{order.name} · {order.phone}</p><p className="text-sm text-slate-600">{order.currency} {Number(order.amount).toLocaleString()} · {order.payment_method}</p></div>
+        <div><p className="font-semibold">{order.name} · <MaskedPhone value={order.phone} /></p><p className="text-sm text-slate-600">{order.currency} {Number(order.amount).toLocaleString()} · {order.payment_method}</p></div>
         <div><p className="text-sm">Reference: <span className="font-mono">{order.receipt_reference}</span></p><p className="text-xs capitalize text-slate-500">{order.status} · {new Date(order.created_at).toLocaleString()}</p></div>
         {order.status === 'pending' ? <div className="flex gap-2"><Btn onClick={() => mutate({ action: 'review_exam_pass', id: order.id, decision: 'approve' })}>Approve</Btn><Btn variant="ghost" onClick={() => mutate({ action: 'review_exam_pass', id: order.id, decision: 'reject' })}>Reject</Btn></div> : <span className="text-sm text-slate-500">{order.status === 'approved' ? 'Pass issued' : order.status === 'redeemed' ? 'Pass used' : 'Reviewed'}</span>}
       </Card>)}</div>}
@@ -263,7 +264,7 @@ function Configuration({ companies, coupons, mutate }: { companies: any[]; coupo
 }
 
 const examCols = [
-  { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone' },
+  { k: 'name', h: 'Name' }, { k: 'phone', h: 'Phone', render: (r: any) => <MaskedPhone value={r.phone} />, csv: (r: any) => maskPhone(r.phone) },
   { k: 'score', h: 'Marks', render: (r: any) => (r.submitted_at ? `${r.score}/${r.max_marks}` : 'In progress'), csv: (r: any) => (r.submitted_at ? r.score : '') },
   { k: 'passed', h: 'Result', render: (r: any) => (r.submitted_at ? <Badge tone={r.passed ? 'green' : 'red'}>{r.passed ? 'Pass' : 'Fail'}</Badge> : '-'), csv: (r: any) => (r.submitted_at ? (r.passed ? 'Pass' : 'Fail') : '') },
   { k: 'cert_id', h: 'Certificate' }, { k: 'created_at', h: 'Started', render: (r: any) => new Date(r.created_at).toLocaleString() },

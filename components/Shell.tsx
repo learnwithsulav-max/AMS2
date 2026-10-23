@@ -23,7 +23,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
           <nav className="hidden gap-1 md:flex" aria-label="Portals">
             {NAV.map(([k, l]) => (
               <a key={k} href={siteUrl(k)}
-                className={cx('rounded-md px-3 py-2 text-sm font-medium', site === k ? 'bg-slate-100 text-navy' : 'text-slate-600 hover:text-navy')}>
+                className={cx('rounded-md px-3 py-2 text-sm font-medium', site === k ? 'bg-paper text-navy ring-1 ring-gold/40' : 'text-slate-600 hover:text-navy')}>
                 {t(l)}
               </a>
             ))}

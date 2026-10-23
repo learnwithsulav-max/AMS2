@@ -4,10 +4,11 @@ import React from 'react';
 export const cx = (...a: (string | false | undefined | null)[]) => a.filter(Boolean).join(' ');
 
 const variants: Record<string, string> = {
-  primary: 'bg-brand text-white hover:bg-blue-700',
+  primary: 'bg-brand text-white hover:bg-navy-800',
+  cta: 'bg-gold text-white hover:brightness-95',
   dark: 'bg-navy text-white hover:bg-slate-800',
   ghost: 'bg-white text-navy border border-slate-300 hover:bg-slate-50',
-  gold: 'bg-gold text-navy hover:brightness-95',
+  gold: 'bg-gold text-white hover:brightness-95',
   danger: 'bg-red-600 text-white hover:bg-red-700',
 };
 export const btnClass = (variant = 'primary', extra?: string) =>
@@ -34,7 +35,7 @@ export function Field({ label, as: As = 'input', children, className, ...p }: an
 export function Badge({ tone = 'slate', children }: any) {
   const tones: Record<string, string> = {
     slate: 'bg-slate-100 text-slate-700', blue: 'bg-blue-100 text-blue-800', green: 'bg-emerald-100 text-emerald-800',
-    red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-800', gold: 'bg-yellow-100 text-yellow-800',
+    red: 'bg-red-100 text-red-700', amber: 'bg-orange-100 text-orange-900', gold: 'bg-gold/10 text-gold',
   };
   return <span className={cx('inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold', tones[tone])}>{children}</span>;
 }
