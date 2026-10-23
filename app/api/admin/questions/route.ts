@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/admin-auth';
+import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 const categories = new Set(['nia','reinsurance','life','nonlife','microinsurance','aml_cft','agent_conduct','life_cases','nonlife_cases','micro_cases']);
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin.from('question_bank').update({ category, language, difficulty, question_en: questionEn || null, question_ne: questionNe || null, explanation_en: clean(body.explanation_en, 2000) || null, explanation_ne: clean(body.explanation_ne, 2000) || null, active: body.active, updated_at: new Date().toISOString() }).eq('id', id).select('id').maybeSingle();
     if (error) return NextResponse.json({ error: 'Question could not be updated.' }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'Question not found.' }, { status: 404 });
-    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const forwarded = getAdminRequestIp(request);
     const { error: auditError } = await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'question_updated', meta: { target_id: id, ip: forwarded, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
     if (auditError) return NextResponse.json({ error: 'Question saved, but its audit record could not be written.' }, { status: 500 });
     return NextResponse.json({ ok: true, id });
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const { error } = await admin.from('question_bank').insert(records.slice(i, i + 500));
     if (error) { console.error('Question import failed:', error.message); return NextResponse.json({ error: 'Could not save imported questions. The migration may not be applied.' }, { status: 500 }); }
   }
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  const forwarded = getAdminRequestIp(request);
   const userAgent = request.headers.get('user-agent')?.slice(0, 500) || null;
   const { error: auditError } = await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'questions_imported', meta: { imported: records.length, skipped, ip: forwarded, user_agent: userAgent } });
   if (auditError) return NextResponse.json({ error: 'Questions imported, but audit logging failed. Contact an administrator.' }, { status: 500 });

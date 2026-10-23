@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
-import { requireAdmin } from '@/lib/admin-auth';
+import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,11 +39,11 @@ export async function POST(request: Request) {
     }));
     const { error } = await admin.from('notification_outbox').insert(batch);
     if (error) {
-      await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'admin_broadcast_queue_failed', meta: { campaign_id: campaignId, audience, queued_before_failure: Math.min(i, recipients.length), ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
+      await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'admin_broadcast_queue_failed', meta: { campaign_id: campaignId, audience, queued_before_failure: Math.min(i, recipients.length), ip: getAdminRequestIp(request), user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
       return NextResponse.json({ error: 'Announcement was only partially queued. Check the notification queue before retrying.' }, { status: 500 });
     }
   }
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;
+  const ip = getAdminRequestIp(request);
   const { error: auditError } = await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'admin_broadcast_queued', meta: { campaign_id: campaignId, audience, recipient_count: recipients.length, subject, ip, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
   if (auditError) return NextResponse.json({ error: 'Announcement queued, but its audit record could not be written.' }, { status: 500 });
   return NextResponse.json({ queued: recipients.length, campaignId });

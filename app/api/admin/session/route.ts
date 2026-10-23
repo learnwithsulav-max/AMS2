@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/admin-auth';
+import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,7 @@ export async function DELETE(request: Request) {
     console.error('Could not release admin session:', error.message);
     return NextResponse.json({ error: 'Could not safely release the admin session.' }, { status: 503 });
   }
-  await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'admin_session_released', meta: { ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
+  const { error: auditError } = await admin.from('activity_log').insert({ actor: user.email || user.id, actor_id: user.id, action: 'admin_session_released', meta: { ip: getAdminRequestIp(request), user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
+  if (auditError) console.error('Admin session released, but its audit row could not be written:', auditError.message);
   return NextResponse.json({ ok: true });
 }

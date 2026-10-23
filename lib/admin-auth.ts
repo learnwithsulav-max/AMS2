@@ -3,6 +3,11 @@ import { createHmac } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 
+export function getAdminRequestIp(request: Request) {
+  return request.headers.get('cf-connecting-ip')?.trim() || request.headers.get('x-real-ip')?.trim() ||
+    request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || null;
+}
+
 export async function requireAdmin(request: Request) {
   const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) {
@@ -50,7 +55,7 @@ export async function requireAdmin(request: Request) {
     return { user: null, response: NextResponse.json({ error: 'Another admin session is active. Try again after that session signs out or expires.' }, { status: 409 }) };
   }
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+  const ip = getAdminRequestIp(request) || 'unknown';
   const keyHash = createHmac('sha256', process.env.SUPABASE_SERVICE_ROLE_KEY || 'lws-admin-rate-limit')
     .update(ip).digest('hex');
   const { data: withinLimit, error: rateError } = await admin.rpc('check_admin_rate_limit', {

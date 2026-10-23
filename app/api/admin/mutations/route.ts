@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/admin-auth';
+import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
 async function audit(actor: string, actorId: string, action: string, targetId: string | null, meta: Record<string, unknown> = {}, request?: Request) {
-  const ip = request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request?.headers.get('x-real-ip') || null;
+  const ip = request ? getAdminRequestIp(request) : null;
   const userAgent = request?.headers.get('user-agent')?.slice(0, 500) || null;
   const { error } = await admin.from('activity_log').insert({
     actor, actor_id: actorId, action, meta: { ...meta, target_id: targetId, ip, user_agent: userAgent },
