@@ -110,6 +110,8 @@ begin
     from team_layers(root) l join policies p on p.agent_id = l.agent_id join profiles pr on pr.id = p.agent_id
     where p.issue_date between d_from and d_to;
 end $$;
+revoke execute on function team_production(uuid, date, date) from public, anon;
+grant execute on function team_production(uuid, date, date) to authenticated;
 
 -- row level security
 alter table profiles enable row level security; alter table leads enable row level security;
@@ -126,7 +128,7 @@ create policy "leads own" on leads for all to authenticated using (agent_id = (s
 create policy "policies own" on policies for all to authenticated using (agent_id = (select auth.uid()) or is_admin()) with check (agent_id = (select auth.uid()) or is_admin());
 
 create policy "schemes read" on schemes for select to authenticated using (true);
-create policy "schemes admin" on schemes for all using (is_admin()) with check (is_admin());
+create policy "schemes admin" on schemes for all to authenticated using (is_admin()) with check (is_admin());
 create policy "scheme_status read" on scheme_status for select to authenticated using (agent_id = (select auth.uid()) or is_admin());
 create policy "scheme_status admin" on scheme_status for all to authenticated using (is_admin()) with check (is_admin());
 
@@ -136,7 +138,7 @@ create policy "log admin read" on activity_log for select to authenticated using
 
 -- profile photos
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict do nothing;
-create policy "avatar read" on storage.objects for select using (bucket_id = 'avatars');
+create policy "avatar read" on storage.objects for select to anon, authenticated using (bucket_id = 'avatars');
 create policy "avatar upload" on storage.objects for insert to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "avatar update" on storage.objects for update to authenticated
