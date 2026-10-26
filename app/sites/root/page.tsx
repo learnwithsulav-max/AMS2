@@ -1,20 +1,27 @@
 'use client';
+import { useMemo } from 'react';
 import { Shell } from '@/components/Shell';
 import { LinkBtn, Card } from '@/components/ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, siteUrl } from '@/lib/brand';
+import { adToBs, getTodayGreeting } from '@/lib/nepali-date';
 
 export default function Landing() {
   const { t } = useI18n();
+  const bs = useMemo(() => adToBs(), []);
+  const greeting = useMemo(() => getTodayGreeting(), []);
+
   const portals = [
-    { k: 'exam' as const, label: t('nav_exam'), host: 'exam.sulavs.com.np' },
-    { k: 'agency' as const, label: t('nav_agency'), host: 'agency.sulavs.com.np' },
+    { k: 'exam' as const, label: t('nav_exam'), host: 'exam.sulavs.com.np', desc: 'Mock tests, questions, and instant certificate' },
+    { k: 'agency' as const, label: t('nav_agency'), host: 'agency.sulavs.com.np', desc: 'Policy ledger, team network, BDI weightage & title ladder' },
   ];
   const services = [
     { title: t('svc_exam_t'), body: t('svc_exam_d'), href: siteUrl('exam') },
     { title: t('svc_agency_t'), body: t('svc_agency_d'), href: siteUrl('agency') },
-    { title: t('svc_comm_t'), body: t('svc_comm_d'), href: BRAND.links.whatsapp },
-    { title: 'Find an advisor', body: 'Browse public profiles from Learn With Sulav agents.', href: '/agents' },
+    { title: 'नेपाली पात्रो & Date Converter', body: 'Bikram Sambat calendar, AD ↔ BS two-way date conversion and insurance underwriting age calculation.', href: `${siteUrl('agency')}` },
+    { title: 'BDI & MDRT Weightage Engine', body: 'Exact Nepal insurance rules: Single premium 0–9y (20%), 10–14y (40%), 15+y (60%) across TDI, BDI, and club qualifications.', href: `${siteUrl('agency')}` },
+    { title: 'Agent Career Hierarchy', body: 'From Ordinary Agent, Field Representative, Insurance Advisor to Agency Manager (AM), SAM, Star AM, and Chief Agency Manager.', href: `${siteUrl('agency')}` },
+    { title: 'Find an advisor', body: 'Browse public verified agent portfolios and profiles across Nepal.', href: '/agents' },
   ];
   const community = [
     { l: t('link_fb'), d: t('link_fb_d'), href: BRAND.links.facebook, icon: '/facebook-logo.jpeg', alt: 'Facebook' },
@@ -24,9 +31,39 @@ export default function Landing() {
   ];
   return (
     <Shell site="root">
+      {/* Live Nepal BS Date & Today's Occasion Banner */}
+      <div className="border-b border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 px-4 py-3 text-slate-800">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-[#F15A24] px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs">
+              🇳🇵 {greeting.badge}
+            </span>
+            <span className="font-bold text-[#0A4F8A]">{bs.formattedBsNe}</span>
+            <span className="hidden text-slate-500 sm:inline">({bs.formattedBs} / {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})</span>
+            <span className="hidden text-slate-700 md:inline">· {greeting.title}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={`https://wa.me/977${BRAND.contact.phones[0].replace(/\D/g, '')}?text=${encodeURIComponent('नमस्ते Sulav Sir, Learn With Sulav बिमा पोर्टल सम्बन्धी जानकारी लिन चाहन्थें।')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 font-bold text-[#0A4F8A] hover:underline"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/whatsapp-logo.png" alt="WhatsApp" className="h-4 w-4 rounded-full" />
+              <span>परामर्श लिनुहोस्</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
       <section className="bg-navy text-white">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 lg:grid-cols-[1.4fr_1fr] lg:py-24">
           <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-orange-300 backdrop-blur-xs">
+              <span>🌟</span>
+              <span>नेपालका सबै १४ जीवन तथा निर्जीवन बिमा कम्पनीहरूका लागि प्रमाणित प्लेटफर्म</span>
+            </div>
             <h1 className="max-w-2xl text-3xl font-extrabold leading-tight sm:text-5xl sm:leading-[1.1]">{t('hero_title')}</h1>
             <p className="mt-5 max-w-xl text-lg text-slate-300">{t('hero_sub')}</p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -48,7 +85,11 @@ export default function Landing() {
               {portals.map((p) => (
                 <li key={p.k}>
                   <a href={siteUrl(p.k)} className="flex items-center justify-between py-3 hover:text-brand">
-                    <span className="font-semibold">{p.label}</span><span className="text-sm text-slate-500">{p.host}</span>
+                    <div>
+                      <p className="font-semibold">{p.label}</p>
+                      <p className="text-xs text-slate-500">{p.desc}</p>
+                    </div>
+                    <span className="text-xs font-mono font-medium text-slate-400">{p.host}</span>
                   </a>
                 </li>
               ))}
