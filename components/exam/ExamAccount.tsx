@@ -61,7 +61,7 @@ export function ExamAccount() {
     // Successful login - redirect to exam portal
     setMessage(mode === 'register' ? 'Exam account created.' : 'Signed in. Redirecting...');
     setTimeout(() => {
-      router.push('/exam');
+      router.replace('/');
       router.refresh();
     }, 1000);
   }

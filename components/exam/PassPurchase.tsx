@@ -90,9 +90,9 @@ export function PassPurchase({
     sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next));
     setClaim(next);
     setOrder(j.order);
-    setMessage('Payment voucher submitted successfully. Redirecting to login...');
+    setMessage('Payment voucher submitted. Refreshing exam pass status...');
     setTimeout(() => {
-      router.push('/exam');
+      router.replace('/');
       router.refresh();
     }, 1500);
   }
