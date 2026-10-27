@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Btn, Card, Field } from '../ui';
 
 export function ExamAccount() {
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', whatsappOptIn: false });
   const [busy, setBusy] = useState(false);
@@ -48,9 +50,20 @@ export function ExamAccount() {
 
     if (mode === 'register' && !result.data.session) {
       setMessage('Registration received. Verify your email, then log in to complete payment and access the exam.');
+      // Auto-switch to login mode after 2 seconds
+      setTimeout(() => {
+        setMode('login');
+        setMessage('');
+      }, 2000);
       return;
     }
-    setMessage(mode === 'register' ? 'Exam account created.' : 'Signed in.');
+    
+    // Successful login - redirect to exam portal
+    setMessage(mode === 'register' ? 'Exam account created.' : 'Signed in. Redirecting...');
+    setTimeout(() => {
+      router.push('/exam');
+      router.refresh();
+    }, 1000);
   }
 
   return (

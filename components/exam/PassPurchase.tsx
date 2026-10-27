@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, Btn, Field } from '../ui';
 import { jsPDF } from 'jspdf';
 import { BRAND } from '@/lib/brand';
@@ -22,6 +23,7 @@ export function PassPurchase({
   candidateName: string;
   candidatePhone: string;
 }) {
+  const router = useRouter();
   const [claim, setClaim] = useState<Claim | null>(null);
   const [order, setOrder] = useState<any>(null);
   const [form, setForm] = useState({ packageCode: 'exam_pro_month', provider: 'fonepay', couponCode: '' });
@@ -88,7 +90,11 @@ export function PassPurchase({
     sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next));
     setClaim(next);
     setOrder(j.order);
-    setMessage('Payment voucher submitted successfully. Access activates immediately upon admin verification.');
+    setMessage('Payment voucher submitted successfully. Redirecting to login...');
+    setTimeout(() => {
+      router.push('/exam');
+      router.refresh();
+    }, 1500);
   }
 
   async function applyCoupon() {
