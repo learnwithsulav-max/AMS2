@@ -73,6 +73,15 @@ export default function Agency() {
         <AuthCard title="Learn With Sulav · Agent Portal" />
       </Shell>
     );
+  if (profile?.portal_type === 'exam_candidate')
+    return (
+      <Shell site="agency" right={<Btn variant="ghost" onClick={signOut}>Log out</Btn>}>
+        <Card className="mx-auto my-16 max-w-md p-8 text-center">
+          <h1 className="text-xl font-bold">Agent account required</h1>
+          <p className="mt-2 text-slate-600">This account is registered for the exam portal. Use an agent account to continue here.</p>
+        </Card>
+      </Shell>
+    );
   if (!profile)
     return (
       <Shell site="agency" right={<Btn variant="ghost" onClick={signOut}>Log out</Btn>}>

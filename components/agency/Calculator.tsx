@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LAYERS, LAYER_LABEL, LAYER_RATES, calcIncentive, monthEnd, monthStart, npr, weightPct, weighted, type CompanyRateMap } from '@/lib/rules';
+import { LAYERS, LAYER_LABEL, LAYER_RATES, calcIncentive, companyRulesToRateMap, monthEnd, monthStart, npr, weightPct, weighted, type CompanyRateMap } from '@/lib/rules';
 import { Btn, Card, Field } from '../ui';
 import { jsPDF } from 'jspdf';
 import { ALL_INSURANCE_COMPANIES } from '@/lib/nepali-companies';
@@ -37,17 +37,7 @@ export function Calculator({ uid }: { uid: string }) {
     if (error) setErr(error.message);
     else setRows(data || []);
 
-    const parsed: CompanyRateMap = {};
-    for (const row of config || []) {
-      const normalize = (value: any) =>
-        Object.fromEntries(
-          Object.entries(value || {})
-            .filter(([key, rate]) => ['A', 'B', 'C', 'D'].includes(key) && Number.isFinite(Number(rate)))
-            .map(([key, rate]) => [key, Number(rate) / 100])
-        );
-      parsed[String(row.company).toLowerCase()] = { TDI: normalize(row.tdi_rules), BDI: normalize(row.bdi_rules) };
-    }
-    setCompanyRates(parsed);
+    setCompanyRates(companyRulesToRateMap(config || []));
   }
 
   useEffect(() => {

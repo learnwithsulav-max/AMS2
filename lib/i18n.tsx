@@ -36,6 +36,10 @@ const dict: Record<Lang, Record<string, string>> = {
     cert_title: 'Your certificate', cert_png: 'Download PNG', cert_pdf: 'Download PDF',
     cert_locked: 'Pass the exam to unlock your certificate.',
     retake: 'Take another exam', review: 'Review answers', history: 'Your recent attempts',
+    pay_first_title: 'Payment required',
+    pay_first_body: 'Please complete exam pass payment first. Access activates after your payment is approved and the admin enables your account.',
+    pay_first_cta: 'Go to payment',
+    pay_first_cancel: 'Not now',
   },
   ne: {
     nav_home: 'गृहपृष्ठ', nav_agency: 'एजेन्सी पोर्टल', nav_exam: 'परीक्षा पोर्टल',
@@ -69,6 +73,10 @@ const dict: Record<Lang, Record<string, string>> = {
     cert_title: 'तपाईंको प्रमाणपत्र', cert_png: 'PNG डाउनलोड', cert_pdf: 'PDF डाउनलोड',
     cert_locked: 'प्रमाणपत्र खोल्न परीक्षा उत्तीर्ण गर्नुहोस्।',
     retake: 'अर्को परीक्षा दिनुहोस्', review: 'उत्तरहरू समीक्षा', history: 'तपाईंका हालका प्रयास',
+    pay_first_title: 'भुक्तानी आवश्यक छ',
+    pay_first_body: 'पहिले परीक्षा पासको भुक्तानी पूरा गर्नुहोस्। तपाईंको भुक्तानी स्वीकृत भएपछि र एडमिनद्वारा खाता सक्षम भएपछि पहुँच सक्रिय हुन्छ।',
+    pay_first_cta: 'भुक्तानी पृष्ठमा जानुहोस्',
+    pay_first_cancel: 'अहिले होइन',
   },
 };
 

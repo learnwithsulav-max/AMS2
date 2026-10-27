@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
+import { toInternationalPhone } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,28 +15,30 @@ export async function POST(request: Request) {
   const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 3000) : '';
   if (!['all_registered', 'agents'].includes(audience) || subject.length < 3 || message.length < 5) return NextResponse.json({ error: 'Choose an audience and enter a subject and message.' }, { status: 400 });
 
-  let recipients: string[] = [];
+  let recipients: { channel: 'email' | 'whatsapp'; recipient: string }[] = [];
   if (audience === 'agents') {
-    const { data, error } = await admin.from('profiles').select('email').eq('role', 'agent').not('email', 'is', null).limit(10000);
+    const { data, error } = await admin.from('profiles').select('id,email,phone,whatsapp_opt_in').eq('role', 'agent').limit(10000);
     if (error) return NextResponse.json({ error: 'Could not load the agent audience.' }, { status: 500 });
-    recipients = (data || []).map(row => row.email).filter((email): email is string => typeof email === 'string' && email.includes('@'));
+    recipients = (data || []).flatMap((row) => [
+      ...(typeof row.email === 'string' && row.email.includes('@') ? [{ channel: 'email' as const, recipient: row.email.trim().toLowerCase() }] : []),
+      ...(row.whatsapp_opt_in && typeof row.phone === 'string' ? [{ channel: 'whatsapp' as const, recipient: toInternationalPhone(row.phone) }] : []),
+    ]);
   } else {
-    for (let page = 1; page <= 20; page++) {
-      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) return NextResponse.json({ error: 'Could not load the registered user audience.' }, { status: 500 });
-      const users = data.users as any[];
-      recipients.push(...users.filter(row => row.id !== user.id && !!row.email).map(row => row.email as string));
-      if (users.length < 1000) break;
-    }
+    const { data, error } = await admin.from('profiles').select('id,email,phone,whatsapp_opt_in').neq('id', user.id).limit(20000);
+    if (error) return NextResponse.json({ error: 'Could not load the registered user audience.' }, { status: 500 });
+    recipients = (data || []).flatMap((row) => [
+      ...(typeof row.email === 'string' && row.email.includes('@') ? [{ channel: 'email' as const, recipient: row.email.trim().toLowerCase() }] : []),
+      ...(row.whatsapp_opt_in && typeof row.phone === 'string' ? [{ channel: 'whatsapp' as const, recipient: toInternationalPhone(row.phone) }] : []),
+    ]);
   }
-  recipients = [...new Set(recipients.map(value => value.trim().toLowerCase()).filter(value => value.length <= 320))].slice(0, 20000);
+  recipients = [...new Map(recipients.filter((row) => row.recipient && row.recipient.length <= 320).map((row) => [`${row.channel}:${row.recipient}`, row])).values()].slice(0, 40000);
   if (!recipients.length) return NextResponse.json({ error: 'No email addresses are available for this audience.' }, { status: 400 });
 
   const campaignId = randomUUID();
   for (let i = 0; i < recipients.length; i += 500) {
-    const batch = recipients.slice(i, i + 500).map(recipient => ({
-      dedupe_key: `admin-broadcast:${campaignId}:${createHash('sha256').update(recipient).digest('hex').slice(0, 24)}`,
-      channel: 'email', recipient, subject, message,
+    const batch = recipients.slice(i, i + 500).map(({ channel, recipient }) => ({
+      dedupe_key: `admin-broadcast:${campaignId}:${createHash('sha256').update(`${channel}:${recipient}`).digest('hex').slice(0, 24)}`,
+      channel, recipient, subject, message, purpose: 'general',
     }));
     const { error } = await admin.from('notification_outbox').insert(batch);
     if (error) {

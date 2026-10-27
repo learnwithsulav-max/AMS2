@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
+import { requireExamCandidate } from '@/lib/exam-auth';
 
 export const dynamic = 'force-dynamic';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -12,13 +13,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireExamCandidate(request);
+  if (auth.response) return auth.response;
   const body = await request.json().catch(() => ({}));
-  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 100) : '';
-  const phone = typeof body.phone === 'string' ? body.phone.replace(/[^+\d]/g, '').slice(0, 20) : '';
   const paymentMethod = typeof body.paymentMethod === 'string' ? body.paymentMethod.trim().slice(0, 40) : '';
   const receiptReference = typeof body.receiptReference === 'string' ? body.receiptReference.trim().slice(0, 120) : '';
-  if (name.length < 2 || phone.replace(/\D/g, '').length < 7 || paymentMethod.length < 2 || receiptReference.length < 3) {
-    return NextResponse.json({ error: 'Enter your name, a valid phone number, payment method, and receipt or transaction reference.' }, { status: 400 });
+  if (paymentMethod.length < 2 || receiptReference.length < 3) {
+    return NextResponse.json({ error: 'Enter a payment method and receipt or transaction reference.' }, { status: 400 });
   }
   const { data: setting, error: settingError } = await admin.from('exam_pass_settings').select('price,currency,active,payment_instructions').eq('id', true).maybeSingle();
   if (settingError) return NextResponse.json({ error: 'Could not load exam pass settings.' }, { status: 500 });
@@ -26,7 +27,10 @@ export async function POST(request: Request) {
 
   const claimToken = randomBytes(32).toString('hex');
   const { data, error } = await admin.from('exam_pass_orders').insert({
-    name, phone, amount: setting.price, currency: setting.currency, payment_method: paymentMethod,
+    user_id: auth.user.id,
+    name: auth.profile.name || auth.user.email || 'Candidate',
+    phone: auth.profile.phone || '',
+    amount: setting.price, currency: setting.currency, payment_method: paymentMethod,
     receipt_reference: receiptReference, claim_token_hash: hash(claimToken),
   }).select('id,amount,currency,status,created_at').single();
   if (error || !data) {

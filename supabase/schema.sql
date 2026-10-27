@@ -7,6 +7,8 @@ create table if not exists profiles (
   upline_id uuid references profiles(id),
   referral_code text unique,
   role text not null default 'agent' check (role in ('agent','admin')),
+  portal_type text not null default 'agent' check (portal_type in ('agent','exam_candidate')),
+  whatsapp_opt_in boolean not null default false,
   membership text not null default 'free' check (membership in ('free','premium')),
   status text not null default 'active',
   created_at timestamptz default now()
@@ -45,6 +47,7 @@ create table if not exists scheme_status (
 
 create table if not exists exam_attempts (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
   name text not null, phone text not null,
   question_ids int[] not null, answers jsonb,
   ends_at timestamptz not null, submitted_at timestamptz,
@@ -68,13 +71,17 @@ grant execute on function is_admin(), my_role(), my_membership() to authenticate
 
 -- profile created automatically on sign-up; links the upline from the referral code
 create or replace function handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
-declare up uuid;
+declare up uuid; account_type text;
 begin
-  select id into up from profiles where referral_code = upper(trim(coalesce(new.raw_user_meta_data->>'upline_code', '')));
-  insert into profiles (id, email, name, phone, license_no, address, branch, upline_id, referral_code)
+  account_type := case when new.raw_user_meta_data->>'portal_type'='exam_candidate' then 'exam_candidate' else 'agent' end;
+  if account_type = 'agent' then
+    select id into up from profiles where referral_code = upper(trim(coalesce(new.raw_user_meta_data->>'upline_code', '')));
+  end if;
+  insert into profiles (id, email, name, phone, license_no, address, branch, upline_id, referral_code, portal_type, whatsapp_opt_in)
   values (new.id, new.email, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'phone', new.raw_user_meta_data->>'license_no',
           new.raw_user_meta_data->>'address', new.raw_user_meta_data->>'branch', up,
-          'LWS' || upper(substr(md5(random()::text || new.id::text), 1, 6)));
+          'LWS' || upper(substr(md5(random()::text || new.id::text), 1, 6)), account_type,
+          new.raw_user_meta_data->>'whatsapp_opt_in'='true');
   return new;
 end $$;
 drop trigger if exists on_auth_user_created on auth.users;
@@ -177,7 +184,7 @@ create index if not exists public_profiles_published_slug_idx on public_profiles
 -- Keep user-editable profile fields narrow; account status, referral ownership,
 -- email, role, and membership remain server-managed.
 revoke update on profiles from authenticated;
-grant update (name, phone, license_no, address, branch, avatar_url) on profiles to authenticated;
+grant update (name, phone, license_no, address, branch, avatar_url, whatsapp_opt_in) on profiles to authenticated;
 -- Paid exam passes start disabled. Set a positive NPR price in Admin to enable requests.
 create table if not exists exam_pass_settings (
   id boolean primary key default true check (id),
@@ -194,6 +201,7 @@ create policy "admins read exam pass settings" on exam_pass_settings for select 
 
 create table if not exists exam_pass_orders (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
   name text not null check (length(trim(name)) between 2 and 100),
   phone text not null check (length(phone) between 7 and 20),
   amount numeric(10,2) not null check (amount > 0),
@@ -212,4 +220,5 @@ create policy "admins read exam pass orders" on exam_pass_orders for select to a
 grant select on exam_pass_settings, exam_pass_orders to authenticated;
 create index if not exists exam_pass_orders_status_created_idx on exam_pass_orders (status, created_at desc);
 alter table exam_attempts add column if not exists pass_order_id uuid references exam_pass_orders(id);
-create unique index if not exists exam_attempts_pass_order_idx on exam_attempts (pass_order_id) where pass_order_id is not null;
+create index if not exists exam_attempts_pass_order_idx on exam_attempts (pass_order_id) where pass_order_id is not null;
+create unique index if not exists exam_attempts_cert_id_idx on exam_attempts (cert_id) where cert_id is not null;

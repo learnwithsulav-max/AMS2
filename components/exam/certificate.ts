@@ -13,13 +13,18 @@ function load(src: string) {
 export type CertInfo = { name: string; score: number; max: number; certId: string; date: string };
 
 export async function renderCertificate(info: CertInfo) {
-  const img = await load('/certificate-template.jpg');
+  const [img, logo] = await Promise.all([load('/certificate-template.jpg'), load('/logo.png')]);
   try { await (document as any).fonts?.ready; } catch {}
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
   const g = c.getContext('2d')!;
   const k = c.width / W;
   g.drawImage(img, 0, 0);
+
+  g.save();
+  g.globalAlpha = 0.08;
+  g.drawImage(logo, 700 * k, 600 * k, 354 * k, 354 * k);
+  g.restore();
 
   const cover = (x: number, y: number, w: number, h: number) => { g.fillStyle = BOX_BG; g.fillRect(x * k, y * k, w * k, h * k); };
   g.fillStyle = NAVY;
@@ -34,10 +39,14 @@ export async function renderCertificate(info: CertInfo) {
 
   g.font = `700 ${19 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
   // Marks, certificate number and date replace the printed blanks
-  cover(438, 694, 86, 28); g.textAlign = 'center'; g.fillText(String(info.score), 482 * k, 712 * k);
+  cover(438, 694, 110, 28); g.textAlign = 'center'; g.fillText(`${info.score}/${info.max}`, 493 * k, 712 * k);
   g.textAlign = 'left';
   cover(450, 743, 150, 28); g.fillText(info.certId.replace('LWS-CERT-', ''), 454 * k, 762 * k);
   cover(352, 768, 150, 26); g.fillText(info.date, 356 * k, 787 * k);
+  g.fillStyle = NAVY;
+  g.textAlign = 'center';
+  g.font = `700 ${18 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
+  g.fillText(`Registration / Certificate Code: ${info.certId}`, c.width / 2, 1200 * k);
   return c;
 }
 

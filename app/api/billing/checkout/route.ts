@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/portal-auth';
+import { requireExamCandidate } from '@/lib/exam-auth';
 import { siteUrl } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
@@ -15,14 +16,17 @@ export async function POST(request: Request) {
   const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32) : '';
   if (!['agency_basic','agency_pro','exam_pass'].includes(product) || !['esewa','khalti'].includes(provider)) return NextResponse.json({ error: 'Choose an available plan and payment provider.' }, { status: 400 });
 
-  let user: any = null;
-  let guestName = ''; let guestPhone = '';
+  let user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null;
+  let candidateProfile: { name: string | null; phone: string | null; email: string | null } | null = null;
   if (product === 'exam_pass') {
-    guestName = typeof body.name === 'string' ? body.name.trim().slice(0, 100) : '';
-    guestPhone = typeof body.phone === 'string' ? body.phone.replace(/[^+\d]/g, '').slice(0, 20) : '';
-    if (guestName.length < 2 || guestPhone.replace(/\D/g, '').length < 7) return NextResponse.json({ error: 'Enter your full name and phone number to buy an exam pass.' }, { status: 400 });
+    const auth = await requireExamCandidate(request);
+    if (auth.response) return auth.response;
+    user = auth.user;
+    candidateProfile = auth.profile;
   } else {
-    const auth = await requirePortalUser(request, true); if (auth.response) return auth.response; user = auth.user;
+    const auth = await requirePortalUser(request, true);
+    if (auth.response) return auth.response;
+    user = auth.user;
   }
 
   const { data: pkg, error: packageError } = await admin.from('subscription_packages').select('code,audience,amount_npr,duration_days,active').eq('code',packageCode).eq('active',true).maybeSingle();
@@ -37,7 +41,17 @@ export async function POST(request: Request) {
   if (provider === 'esewa' && !esewaReady || provider === 'khalti' && !khaltiReady) return NextResponse.json({ error: `${provider === 'esewa' ? 'eSewa' : 'Khalti'} checkout is not configured yet.` }, { status: 503 });
 
   const { data: order, error: insertError } = await admin.from('billing_orders').insert({
-    user_id: user?.id || null, product: product==='exam_pass'?'exam_pass':packageCode, package_code:packageCode, provider, amount, currency, metadata: { ...(guestName ? { name: guestName, phone: guestPhone } : {}), duration_days:pkg.duration_days, ...(couponCode?{coupon_code:couponCode,discount_percent:discount}:{}) },
+    user_id: user.id,
+    product: product === 'exam_pass' ? 'exam_pass' : packageCode,
+    package_code: packageCode,
+    provider,
+    amount,
+    currency,
+    metadata: {
+      ...(candidateProfile ? { name: candidateProfile.name, phone: candidateProfile.phone, email: candidateProfile.email } : {}),
+      duration_days: pkg.duration_days,
+      ...(couponCode ? { coupon_code: couponCode, discount_percent: discount } : {}),
+    },
   }).select('id').single();
   if (insertError || !order) return NextResponse.json({ error: 'Could not create the payment request.' }, { status: 500 });
   if(couponCode){const {data:reserved,error}=await admin.rpc('reserve_coupon',{p_code:couponCode,p_order_id:order.id});if(error||reserved==null){await admin.from('billing_orders').delete().eq('id',order.id);return NextResponse.json({error:'This coupon just reached its use limit. Try another code.'},{status:409});}}
@@ -60,7 +74,9 @@ export async function POST(request: Request) {
   const response = await fetch(`${base}/epayment/initiate/`, {
     method: 'POST', headers: { Authorization: `Key ${process.env.KHALTI_SECRET_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ return_url: callback, website_url: siteUrl('root'), amount: Math.round(amount * 100), purchase_order_id: order.id,
-      purchase_order_name: product.replace('_', ' '), customer_info: user ? { name: user.user_metadata?.name || user.email, email: user.email, phone: user.user_metadata?.phone } : { name: guestName, phone: guestPhone } }),
+    purchase_order_name: product.replace('_', ' '), customer_info: candidateProfile
+      ? { name: candidateProfile.name || user.user_metadata?.name || user.email, email: candidateProfile.email || user.email, phone: candidateProfile.phone }
+      : { name: user.user_metadata?.name || user.email, email: user.email, phone: user.user_metadata?.phone } }),
     cache: 'no-store',
   });
   const khalti = await response.json().catch(() => ({}));

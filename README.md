@@ -43,7 +43,11 @@ for the app's dependency root.
 
 ## Existing AMS database update
 
-For a new Supabase project, run `supabase/schema.sql` as above. For an already-running AMS database, run `supabase/upgrade-portfolios-exam-passes.sql` once before deploying the new code. This adds the RLS-protected public portfolio surface, narrow self-edit permissions, and the manual exam pass tables. Paid exam access stays disabled until an admin sets a positive NPR price and payment instructions in Admin > Exam passes.
+For a new Supabase project, run `supabase/schema.sql` as above, then apply the remaining files in `supabase/migrations` in filename order. For an already-running AMS database, run `supabase/upgrade-portfolios-exam-passes.sql` once, then apply any unapplied migration files in `supabase/migrations` in filename order before deploying. The exam-access migration links passes and attempts to candidate accounts, and adds the email/WhatsApp notification queue. Paid exam access requires a signed-in candidate and a paid, approved pass; configure pass pricing and payment instructions in Admin > Exam passes.
+
+For email/SMS/WhatsApp delivery, configure the Resend and Twilio values above as needed. SMS is limited to Supabase phone OTP and payment confirmations. WhatsApp requires Meta Cloud API credentials and an approved template with one body-text variable (`{{1}}`); set `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE` and `WHATSAPP_API_VERSION` in the deployment environment. WhatsApp is queued only for users who opted in, and email remains the default for notifications.
+
+Company-specific TDI and BDI layer rates can be edited or deleted in Admin > Configuration. Deleting a company rule returns calculations to the configured system defaults in `lib/rules.ts`; the BDI percentages remain editable values rather than a new formula.
 ## Things to adjust
 
 - `lib/brand.ts`: exam length, pass percentage, links, contact details.

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Btn, Field } from '../ui';
 import { jsPDF } from 'jspdf';
-import { BRAND, siteUrl } from '@/lib/brand';
+import { BRAND } from '@/lib/brand';
 
 const CLAIM_KEY = 'lws_exam_package_claim';
 const PAYMENTS = [
@@ -11,49 +11,48 @@ const PAYMENTS = [
   { code: 'exam_pro_month', name: 'Pro Monthly Pass', amount: 250, days: 30, detail: 'Analytics, answer explanations and priority updates.', best: true },
 ];
 
-type Claim = { orderId: string; claimToken: string };
+type Claim = { orderId: string };
 
 export function PassPurchase({
-  onPassCode,
-  onAvailability,
+  accessToken,
+  candidateName,
+  candidatePhone,
 }: {
-  onPassCode: (code: string) => void;
-  onAvailability: (active: boolean, price: number, currency: string) => void;
+  accessToken: string;
+  candidateName: string;
+  candidatePhone: string;
 }) {
   const [claim, setClaim] = useState<Claim | null>(null);
   const [order, setOrder] = useState<any>(null);
-  const [form, setForm] = useState({ name: '', phone: '', pan: '', packageCode: 'exam_pro_month', provider: 'fonepay', couponCode: '' });
+  const [form, setForm] = useState({ packageCode: 'exam_pro_month', provider: 'fonepay', couponCode: '' });
   const [quote, setQuote] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   const sync = useCallback(
     async (c: Claim) => {
-      const r = await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}&claim=${encodeURIComponent(c.claimToken)}`, { cache: 'no-store' });
+      const r = await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}`, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const j = await r.json();
-      if (r.ok) {
-        setOrder(j.order);
-        if (j.order.passCode) onPassCode(j.order.passCode);
-      }
+      if (r.ok) setOrder(j.order);
     },
-    [onPassCode]
+    [accessToken]
   );
 
   useEffect(() => {
-    fetch('/api/exam/passes', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((j) => onAvailability(!!j.active, Number(j.price || 250), j.currency || 'NPR'))
-      .catch(() => onAvailability(true, 250, 'NPR'));
-
     try {
       const c = sessionStorage.getItem(CLAIM_KEY);
       if (c) {
         const parsed = JSON.parse(c);
-        setClaim(parsed);
-        void sync(parsed);
+        if (typeof parsed.orderId === 'string') {
+          setClaim(parsed);
+          void sync(parsed);
+        }
       }
     } catch {}
-  }, [onAvailability, sync]);
+  }, [sync]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,9 +61,6 @@ export function PassPurchase({
     const fd = new FormData();
     fd.set('packageCode', form.packageCode);
     fd.set('provider', form.provider);
-    fd.set('name', form.name);
-    fd.set('phone', form.phone);
-    if (form.pan) fd.set('pan', form.pan);
     fd.set('couponCode', form.couponCode);
 
     const input = document.querySelector<HTMLInputElement>('#exam-voucher');
@@ -76,7 +72,11 @@ export function PassPurchase({
       return;
     }
 
-    const r = await fetch('/api/billing/orders', { method: 'POST', body: fd });
+    const r = await fetch('/api/billing/orders', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: fd,
+    });
     const j = await r.json();
     setBusy(false);
     if (!r.ok) {
@@ -84,7 +84,7 @@ export function PassPurchase({
       return;
     }
 
-    const next = { orderId: j.order.id, claimToken: j.claimToken };
+    const next = { orderId: j.order.id };
     sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next));
     setClaim(next);
     setOrder(j.order);
@@ -154,8 +154,8 @@ export function PassPurchase({
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'normal');
 
-    pdf.text(`Candidate Name: ${order?.name || form.name || 'Candidate'}`, 20, 56);
-    pdf.text(`Phone: ${order?.phone || form.phone || ''}`, 120, 56);
+    pdf.text(`Candidate Name: ${candidateName || 'Candidate'}`, 20, 56);
+    pdf.text(`Phone: ${candidatePhone || ''}`, 120, 56);
     pdf.text(`Package: ${order?.packageCode || 'Exam Practice Pass'}`, 20, 64);
     pdf.text(`Amount Paid: NPR ${order?.amount || quote?.amount || selected.amount}`, 120, 64);
     pdf.text(`Status: ${(order?.status || 'approved').toUpperCase()}`, 20, 72);
@@ -223,7 +223,7 @@ export function PassPurchase({
       <Card className="p-5">
         <h2 className="text-lg font-bold text-[#0A4F8A]">Activate {selected.name}</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Scan either QR code, enter candidate details including PAN, then upload your payment voucher screenshot.
+          Scan either QR code, then upload the payment voucher screenshot for your registered candidate account.
         </p>
 
         {claim && (
@@ -246,16 +246,6 @@ export function PassPurchase({
                   {order.passCode}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPassCode(order.passCode);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className="rounded-lg bg-[#0A4F8A] px-4 py-2 font-bold text-white text-xs hover:bg-[#073B68] transition"
-                  >
-                    Proceed to Exam Login →
-                  </button>
                   <Btn variant="ghost" onClick={downloadReceipt}>
                     Download Payment Receipt (PDF)
                   </Btn>
@@ -327,34 +317,9 @@ export function PassPurchase({
               </p>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Candidate Full Name (परीक्षार्थीको पूरा नाम)"
-                required
-                maxLength={100}
-                placeholder="e.g. Ramesh Karki"
-                value={form.name}
-                onChange={(e: any) => setForm({ ...form, name: e.target.value })}
-              />
-
-              <Field
-                label="Mobile Phone (फोन / WhatsApp)"
-                required
-                type="tel"
-                placeholder="e.g. 9857053594"
-                value={form.phone}
-                onChange={(e: any) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-
-            {/* PAN Field for candidate / agent registration */}
-            <Field
-              label="PAN (Permanent Account Number - Optional)"
-              placeholder="e.g. 102938475"
-              maxLength={12}
-              value={form.pan}
-              onChange={(e: any) => setForm({ ...form, pan: e.target.value })}
-            />
+            <p className="text-sm text-slate-600">
+              Paying as <b>{candidateName}</b> · {candidatePhone}
+            </p>
 
             <label className="grid gap-1 text-sm font-medium">
               Payment Voucher Screenshot (भौचर / ट्रान्सफर स्क्रिनसट)

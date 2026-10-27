@@ -1,23 +1,22 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Btn, Card, Field, LinkBtn, Badge, cx } from '../ui';
+import { Btn, Card, Field, LinkBtn, Badge, cx, Modal } from '../ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, EXAM } from '@/lib/brand';
 import { downloadPdf, downloadPng, renderCertificate } from './certificate';
 import { PassPurchase } from './PassPurchase';
+import { ExamAccount } from './ExamAccount';
+import { useAuth } from '@/lib/auth';
 
-const SESSION = 'lsw_exam_session';
-const HISTORY = 'lsw_exam_history';
 const LETTERS = ['A', 'B', 'C', 'D'];
 const read = (k: string, d: any) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? d; } catch { return d; } };
 
 export default function ExamApp() {
   const { t } = useI18n();
+  const { session, profile, loading, signOut } = useAuth();
   const [stage, setStage] = useState<'intro' | 'exam' | 'result'>('intro');
-  const [who, setWho] = useState({ name: '', phone: '' });
-  const [passCode, setPassCode] = useState('');
-  const [salesActive, setSalesActive] = useState(false);
-  const onPassAvailability = useCallback((active: boolean) => setSalesActive(active), []);
+  const [access, setAccess] = useState<any>(null);
+  const [accessError, setAccessError] = useState('');
   const [attempt, setAttempt] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
@@ -27,14 +26,39 @@ export default function ExamApp() {
   const [saved, setSaved] = useState<any>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [payFirstOpen, setPayFirstOpen] = useState(false);
   const offset = useRef(0);
   const submitting = useRef(false);
 
   useEffect(() => {
-    setHistory(read(HISTORY, []));
-    const s = read(SESSION, null);
+    if (!session?.user.id || profile?.portal_type !== 'exam_candidate') return;
+    const historyKey = `lsw_exam_history:${session.user.id}`;
+    const sessionKey = `lsw_exam_session:${session.user.id}`;
+    setHistory(read(historyKey, []));
+    const s = read(sessionKey, null);
     if (s && new Date(s.attempt.endsAt).getTime() > Date.now() - 120000) setSaved(s);
-  }, []);
+    else setSaved(null);
+  }, [profile?.portal_type, session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.access_token || profile?.portal_type !== 'exam_candidate') {
+      setAccess(null);
+      return;
+    }
+    let active = true;
+    setAccessError('');
+    fetch('/api/exam/access', {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not check exam access.');
+      if (active) setAccess(data);
+    }).catch((error) => {
+      if (active) setAccessError(error instanceof Error ? error.message : 'Could not check exam access.');
+    });
+    return () => { active = false; };
+  }, [profile?.portal_type, session?.access_token]);
 
   const begin = (a: any, ans: Record<string, string>, pg: number) => {
     offset.current = a.serverNow - Date.now();
@@ -42,33 +66,48 @@ export default function ExamApp() {
   };
 
   async function start(e: any) {
-    e.preventDefault(); setBusy(true); setErr('');
-    const r = await fetch('/api/exam/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(salesActive ? { passCode } : who) });
+    e.preventDefault();
+    if (!session?.access_token || !access?.active) {
+      setPayFirstOpen(true);
+      return;
+    }
+    setBusy(true); setErr('');
+    const r = await fetch('/api/exam/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({}),
+    });
     const j = await r.json(); setBusy(false);
     if (!r.ok) return setErr(j.error || 'Something went wrong.');
-    setPassCode('');
-    localStorage.setItem(SESSION, JSON.stringify({ attempt: j, answers: {}, page: 0 }));
+    localStorage.setItem(`lsw_exam_session:${session.user.id}`, JSON.stringify({ attempt: j, answers: {}, page: 0 }));
     begin(j, {}, 0);
   }
 
   const persist = (ans: Record<string, string>, pg: number) => {
-    try { localStorage.setItem(SESSION, JSON.stringify({ attempt, answers: ans, page: pg })); } catch {}
+    if (!session?.user.id) return;
+    try { localStorage.setItem(`lsw_exam_session:${session.user.id}`, JSON.stringify({ attempt, answers: ans, page: pg })); } catch {}
   };
   const pick = (qid: number, k: string) => { const a = { ...answers, [qid]: k }; setAnswers(a); persist(a, page); };
   const go = (p: number) => { setPage(p); persist(answers, p); window.scrollTo({ top: 0 }); };
 
   const submit = useCallback(async () => {
     if (submitting.current || !attempt) return;
+    if (!session?.access_token) return alert('Sign in again before submitting the exam.');
     submitting.current = true;
-    const r = await fetch('/api/exam/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: attempt.attemptId, answers }) });
+    const r = await fetch('/api/exam/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ attemptId: attempt.attemptId, answers }),
+    });
     const j = await r.json();
     submitting.current = false;
     if (!r.ok) return alert(j.error || 'Could not submit. Check your connection and try again.');
-    localStorage.removeItem(SESSION);
-    const h = [{ at: new Date().toISOString(), score: j.score, max: j.max, passed: j.passed }, ...read(HISTORY, [])].slice(0, 10);
-    localStorage.setItem(HISTORY, JSON.stringify(h)); setHistory(h);
+    localStorage.removeItem(`lsw_exam_session:${session.user.id}`);
+    const historyKey = `lsw_exam_history:${session.user.id}`;
+    const h = [{ at: new Date().toISOString(), score: j.score, max: j.max, passed: j.passed }, ...read(historyKey, [])].slice(0, 10);
+    localStorage.setItem(historyKey, JSON.stringify(h)); setHistory(h);
     setResult(j); setStage('result');
-  }, [attempt, answers]);
+  }, [attempt, answers, session]);
 
   // Countdown from the server's clock, auto-submits at zero.
   useEffect(() => {
@@ -89,43 +128,79 @@ export default function ExamApp() {
 
   /* ---------- intro ---------- */
   if (stage === 'intro') {
-    return (
-      <div className="mx-auto grid max-w-4xl gap-6 px-4 py-10 md:grid-cols-[1.2fr_1fr]">
-        <Card className="p-6">
-          <h1 className="text-2xl font-extrabold">{t('exam_login_title')}</h1>
-          <p className="mt-2 text-slate-600">{t('exam_rules')}</p>
-          {saved && (
-            <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm">
-              <p className="font-semibold">{saved.attempt.name}</p>
-              <Btn className="mt-2" onClick={() => begin(saved.attempt, saved.answers, saved.page)}>{t('resume')}</Btn>
-            </div>
+    if (loading) return <p className="p-10 text-center text-slate-500">Loading candidate account...</p>;
+    if (!session) return <div className="px-4 py-10"><ExamAccount /></div>;
+    if (!profile) return <p className="p-10 text-center text-slate-500">Loading candidate profile...</p>;
+    if (profile.portal_type !== 'exam_candidate') {
+      return (
+        <Card className="mx-auto my-10 max-w-xl p-6 text-center">
+          <h1 className="text-xl font-bold">Candidate account required</h1>
+          <p className="mt-2 text-slate-600">Sign out and register or log in with an exam candidate account.</p>
+          <Btn className="mt-4" onClick={signOut}>Log out</Btn>
+        </Card>
+      );
+    }
+      return (
+        <>
+          <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10">
+            <Card className="p-6">
+              <h1 className="text-2xl font-extrabold">{t('exam_login_title')}</h1>
+              <p className="mt-2 text-slate-600">{t('exam_rules')}</p>
+              <p className="mt-2 text-sm text-slate-600">Signed in as <b>{profile.name || session.user.email}</b>.</p>
+              <Btn variant="ghost" className="mt-3" onClick={signOut}>Log out</Btn>
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" aria-live="polite">
+                {accessError ? <p className="text-red-700">{accessError}</p> : access?.active
+                  ? <p className="text-emerald-800">Exam pass active until {new Date(access.expiresAt).toLocaleDateString()}.</p>
+                  : access?.pending ? <p className="text-amber-800">Your payment is being reviewed. You can start after it is approved.</p>
+                  : <p className="text-slate-700">An approved, paid exam pass is required to start.</p>}
+              </div>
+              {saved && (
+                <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm">
+                  <p className="font-semibold">{saved.attempt.name}</p>
+                  <Btn className="mt-2" onClick={() => begin(saved.attempt, saved.answers, saved.page)}>{t('resume')}</Btn>
+                </div>
+              )}
+              <form onSubmit={start} className="mt-5 grid gap-4">
+                {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+                <Btn type="submit" disabled={busy || !access?.active}>{busy ? 'Starting...' : t('start')}</Btn>
+              </form>
+            </Card>
+            <PassPurchase
+              accessToken={session.access_token}
+              candidateName={profile.name || session.user.email || 'Candidate'}
+              candidatePhone={profile.phone || ''}
+            />
+            <Card className="p-6">
+              <h2 className="font-bold">{t('history')}</h2>
+              <ul className="mt-3 grid gap-2 text-sm">
+                {history.map((h, i) => (
+                  <li key={i} className="flex items-center justify-between">
+                    <span className="text-slate-600">{new Date(h.at).toLocaleDateString()}</span>
+                    <span><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
+                  </li>
+                ))}
+                {!history.length && <li className="text-slate-500">-</li>}
+              </ul>
+            </Card>
+          </div>
+          {payFirstOpen && (
+            <Modal title={t('pay_first_title')} onClose={() => setPayFirstOpen(false)}>
+              <p className="mb-4 text-sm text-slate-700">{t('pay_first_body')}</p>
+              <div className="flex justify-end gap-2">
+                <Btn variant="ghost" onClick={() => setPayFirstOpen(false)}>{t('pay_first_cancel')}</Btn>
+                <Btn onClick={() => { setPayFirstOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{t('pay_first_cta')}</Btn>
+              </div>
+            </Modal>
           )}
-          <form onSubmit={start} className="mt-5 grid gap-4">
-            {salesActive ? <Field label="Approved exam pass code" required value={passCode} onChange={(e: any) => setPassCode(e.target.value.toUpperCase())} /> : <><Field label={t('full_name')} required value={who.name} onChange={(e: any) => setWho({ ...who, name: e.target.value })} /><Field label={t('phone')} required inputMode="tel" value={who.phone} onChange={(e: any) => setWho({ ...who, phone: e.target.value })} /></>}            {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
-            <Btn type="submit" disabled={busy}>{t('start')}</Btn>
-          </form>
-        </Card>
-        <PassPurchase onPassCode={setPassCode} onAvailability={onPassAvailability} />
-        <Card className="p-6">
-          <h2 className="font-bold">{t('history')}</h2>
-          <ul className="mt-3 grid gap-2 text-sm">
-            {history.map((h, i) => (
-              <li key={i} className="flex items-center justify-between">
-                <span className="text-slate-600">{new Date(h.at).toLocaleDateString()}</span>
-                <span><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
-              </li>
-            ))}
-            {!history.length && <li className="text-slate-500">-</li>}
-          </ul>
-        </Card>
-      </div>
-    );
+        </>
+      );
   }
 
   /* ---------- result ---------- */
-  if (stage === 'result' && result) return <Result r={result} t={t} onRetake={() => { setStage('intro'); setSaved(null); }} />;
+  if (stage === 'result' && result) return <Result r={result} t={t} accessToken={session?.access_token || ''} onRetake={() => { setStage('intro'); setSaved(null); }} />;
 
   /* ---------- exam ---------- */
+  if (!session?.access_token || !session.user.id) return <p className="p-10 text-center text-red-700">Sign in again to continue the exam.</p>;
   const qs: any[] = attempt.questions;
   const pages = Math.ceil(qs.length / EXAM.perPage);
   const slice = qs.slice(page * EXAM.perPage, page * EXAM.perPage + EXAM.perPage);
@@ -191,7 +266,7 @@ export default function ExamApp() {
   );
 }
 
-function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake: () => void }) {
+function Result({ r, t, accessToken, onRetake }: { r: any; t: (k: string) => string; accessToken: string; onRetake: () => void }) {
   const [url, setUrl] = useState('');
   const [reported, setReported] = useState<number[]>([]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -247,7 +322,7 @@ function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake
               <p className="font-semibold">{i + 1}. {x.q}</p>
               <p className="mt-2 text-sm">Your answer: <b className={x.ok ? 'text-emerald-700' : 'text-red-700'}>{x.chosen || 'Not answered'}</b></p>
               {!x.ok && <p className="text-sm">Correct answer: <b className="text-emerald-700">{x.right}</b></p>}
-              <ReportQuestion attemptId={r.attemptId} questionId={x.id} done={reported.includes(x.id)} onDone={() => setReported((ids)=>[...ids,x.id])}/>
+              <ReportQuestion accessToken={accessToken} attemptId={r.attemptId} questionId={x.id} done={reported.includes(x.id)} onDone={() => setReported((ids)=>[...ids,x.id])}/>
             </Card>
           ))}
         </div>
@@ -256,4 +331,4 @@ function Result({ r, t, onRetake }: { r: any; t: (k: string) => string; onRetake
   );
 }
 
-function ReportQuestion({attemptId,questionId,done,onDone}:{attemptId:string;questionId:number;done:boolean;onDone:()=>void}){const [open,setOpen]=useState(false);const [kind,setKind]=useState('wrong_answer');const [details,setDetails]=useState('');const [error,setError]=useState('');async function send(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/exam/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attemptId,questionId,reportType:kind,details})});const j=await r.json();if(!r.ok){setError(j.error||'Could not send report.');return;}onDone();setOpen(false);}return <div className="mt-3">{done?<span className="text-xs text-emerald-700">Report received</span>:!open?<button className="text-xs font-semibold text-[#0A4F8A] underline" onClick={()=>setOpen(true)}>Report question</button>:<form onSubmit={send} className="grid gap-2 sm:grid-cols-[auto_1fr_auto]"><select value={kind} onChange={e=>setKind(e.target.value)} className="rounded border px-2 py-1 text-sm"><option value="wrong_answer">Wrong answer</option><option value="unclear">Unclear question</option><option value="translation">Translation issue</option><option value="other">Other</option></select><input value={details} onChange={e=>setDetails(e.target.value)} maxLength={1000} placeholder="Optional details" className="rounded border px-2 py-1 text-sm"/><Btn type="submit">Send</Btn>{error&&<p className="text-xs text-red-700 sm:col-span-3">{error}</p>}</form>}</div>}
+function ReportQuestion({accessToken,attemptId,questionId,done,onDone}:{accessToken:string;attemptId:string;questionId:number;done:boolean;onDone:()=>void}){const [open,setOpen]=useState(false);const [kind,setKind]=useState('wrong_answer');const [details,setDetails]=useState('');const [error,setError]=useState('');async function send(e:React.FormEvent){e.preventDefault();const r=await fetch('/api/exam/report',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken}`},body:JSON.stringify({attemptId,questionId,reportType:kind,details})});const j=await r.json();if(!r.ok){setError(j.error||'Could not send report.');return;}onDone();setOpen(false);}return <div className="mt-3">{done?<span className="text-xs text-emerald-700">Report received</span>:!open?<button className="text-xs font-semibold text-[#0A4F8A] underline" onClick={()=>setOpen(true)}>Report question</button>:<form onSubmit={send} className="grid gap-2 sm:grid-cols-[auto_1fr_auto]"><select value={kind} onChange={e=>setKind(e.target.value)} className="rounded border px-2 py-1 text-sm"><option value="wrong_answer">Wrong answer</option><option value="unclear">Unclear question</option><option value="translation">Translation issue</option><option value="other">Other</option></select><input value={details} onChange={e=>setDetails(e.target.value)} maxLength={1000} placeholder="Optional details" className="rounded border px-2 py-1 text-sm"/><Btn type="submit">Send</Btn>{error&&<p className="text-xs text-red-700 sm:col-span-3">{error}</p>}</form>}</div>}

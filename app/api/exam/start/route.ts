@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { QUESTIONS, QUESTION_CATEGORIES } from '@/lib/questions';
 import { admin } from '@/lib/supabase-admin';
 import { EXAM } from '@/lib/brand';
+import { requireExamCandidate } from '@/lib/exam-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,30 +45,22 @@ function selectImported(rows: any[]) {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const { data: setting, error: settingError } = await admin.from('exam_pass_settings').select('price,active').eq('id', true).maybeSingle();
-  if (settingError) return NextResponse.json({ error: 'Could not check exam access settings.' }, { status: 503 });
-  const paidPassRequired = !!setting?.active && Number(setting.price) > 0;
-  let pass: { id: string; name: string; phone: string } | null = null;
-  let name = '';
-  let phone = '';
-  if (paidPassRequired) {
-    const passCode = typeof body.passCode === 'string' ? body.passCode.trim().toUpperCase() : '';
-    if (!/^LWS-[A-F0-9]{16}$/.test(passCode)) return NextResponse.json({ error: 'Enter a valid exam pass code.' }, { status: 400 });
-    const { data, error } = await admin.from('exam_pass_orders').select('id,name,phone,expires_at')
-      .eq('pass_code', passCode).eq('status', 'approved').maybeSingle();
-    if (error) return NextResponse.json({ error: 'Could not verify the exam pass.' }, { status: 500 });
-    if (!data || !data.expires_at || new Date(data.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: 'This exam pass is invalid, expired, or has not been approved.' }, { status: 403 });
-    pass = data;
-    name = data.name;
-    phone = data.phone;
-  } else {
-    name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
-    phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(0, 15) : '';
-    if (name.length < 2 || phone.length < 7) return NextResponse.json({ error: 'Enter your full name and a valid phone number.' }, { status: 400 });
-  }
+  const { user, profile, response } = await requireExamCandidate(req);
+  if (response) return response;
 
-  const { data: imported } = await admin.from('question_bank').select('id,category,question_en,question_ne,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ne,option_b_ne,option_c_ne,option_d_ne,correct_option').eq('active', true);
+  const { data: pass, error: passError } = await admin.from('exam_pass_orders')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'approved')
+    .gt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (passError) return NextResponse.json({ error: 'Could not verify your exam pass.' }, { status: 503 });
+  if (!pass) return NextResponse.json({ error: 'An approved, paid exam pass is required to start.' }, { status: 403 });
+
+  const { data: imported, error: questionError } = await admin.from('question_bank').select('id,category,question_en,question_ne,option_a_en,option_b_en,option_c_en,option_d_en,option_a_ne,option_b_ne,option_c_ne,option_d_ne,correct_option').eq('active', true);
+  if (questionError) return NextResponse.json({ error: 'Could not load the exam question bank.' }, { status: 503 });
   const picked = imported?.length ? (selectImported(imported) || selectQuestions()) : selectQuestions();
   if (!picked || picked.length !== EXAM.total) {
     return NextResponse.json(
@@ -78,12 +71,20 @@ export async function POST(req: Request) {
 
   const now = Date.now();
   const endsAt = new Date(now + EXAM.minutes * 60000).toISOString();
-  const attemptRow = { name, phone, question_ids: picked.map((q) => q.id), ends_at: endsAt, ...(pass ? { pass_order_id: pass.id } : {}) };
+  const attemptRow = {
+    user_id: user.id,
+    name: profile.name || user.email || 'Candidate',
+    phone: profile.phone || '',
+    question_ids: picked.map((q) => q.id),
+    ends_at: endsAt,
+    pass_order_id: pass.id,
+  };
   const { data, error } = await admin.from('exam_attempts').insert(attemptRow).select('id').single();
   if (error || !data) {
+    console.error('Exam attempt could not be created:', error?.message || 'No attempt row returned.');
     return NextResponse.json({ error: 'Could not start the exam. Try again in a moment.' }, { status: 500 });
   }
   // Options are shuffled per attempt, so the position of the right answer varies.
   const questions = picked.map((q) => ({ id: q.id, q: q.q, options: shuffle(q.options) }));
-  return NextResponse.json({ attemptId: data.id, name, endsAt, serverNow: now, questions });
+  return NextResponse.json({ attemptId: data.id, name: attemptRow.name, endsAt, serverNow: now, questions });
 }

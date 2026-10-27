@@ -181,6 +181,31 @@ export const LAYER_LABEL: Record<Layer, string> = {
 
 // rows: [{layer, premium, premium_mode, term_years}]
 export type CompanyRateMap = Record<string, Partial<Record<'TDI' | 'BDI', Partial<Record<Layer, number>>>>>;
+
+export function companyRulesToRateMap(
+  rows: Array<{
+    company?: string | null;
+    tdi_rules?: Record<string, unknown> | null;
+    bdi_rules?: Record<string, unknown> | null;
+  }>,
+): CompanyRateMap {
+  const normalize = (value: Record<string, unknown> | null | undefined) =>
+    Object.fromEntries(
+      Object.entries(value || {})
+        .filter(([layer, rate]) => LAYERS.includes(layer as Layer) && Number.isFinite(Number(rate)))
+        .map(([layer, rate]) => [layer, Number(rate) / 100]),
+    ) as Partial<Record<Layer, number>>;
+
+  return Object.fromEntries(
+    rows
+      .filter((row) => typeof row.company === 'string' && row.company.trim())
+      .map((row) => [
+        row.company!.trim().toLowerCase(),
+        { TDI: normalize(row.tdi_rules), BDI: normalize(row.bdi_rules) },
+      ]),
+  );
+}
+
 export function calcIncentive(rows: any[], kind: 'TDI' | 'BDI', companyRates: CompanyRateMap = {}) {
   const by: Record<Layer, { count: number; raw: number; weighted: number; credit: number }> = {
     A: { count: 0, raw: 0, weighted: 0, credit: 0 }, B: { count: 0, raw: 0, weighted: 0, credit: 0 },
@@ -190,7 +215,7 @@ export function calcIncentive(rows: any[], kind: 'TDI' | 'BDI', companyRates: Co
     const b = by[r.layer as Layer];
     if (!b) continue;
     const amount = weighted(r);
-    const rates = companyRates[String(r.company || '').toLowerCase()]?.[kind] || {};
+    const rates = companyRates[String(r.company || '').trim().toLowerCase()]?.[kind] || {};
     const rate = rates[r.layer as Layer] ?? LAYER_RATES[kind][r.layer as Layer];
     b.count++; b.raw += Number(r.premium || 0); b.weighted += amount; b.credit += amount * rate;
   }

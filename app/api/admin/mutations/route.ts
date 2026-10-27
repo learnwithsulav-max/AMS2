@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
+import { enqueueUserNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,15 +39,17 @@ export async function POST(request: Request) {
   let result: { error: { message: string } | null; data?: { id?: string } | null };
 
   if (body.action === 'update_agent') {
-    const { id, membership, status } = body;
+    const { id, membership, status, exam_enabled } = body;
     const invalidMembership = membership !== undefined && !['free', 'premium'].includes(membership);
     const invalidStatus = status !== undefined && !['active', 'suspended'].includes(status);
-    if (typeof id !== 'string' || !id || invalidMembership || invalidStatus || (membership === undefined && status === undefined)) {
-      return NextResponse.json({ error: 'Provide an agent ID and a valid membership or status.' }, { status: 400 });
+    if (typeof id !== 'string' || !id || invalidMembership || invalidStatus ||
+      (membership === undefined && status === undefined && exam_enabled === undefined)) {
+      return NextResponse.json({ error: 'Provide an agent ID and a valid membership, status, or exam_enabled.' }, { status: 400 });
     }
-    const values: Record<string, string> = {};
+    const values: Record<string, string | boolean> = {};
     if (membership !== undefined) values.membership = membership;
     if (status !== undefined) values.status = status;
+    if (exam_enabled !== undefined) values.exam_enabled = exam_enabled === true || exam_enabled === 'true';
     result = await admin.from('profiles').update(values).eq('id', id).eq('role', 'agent').select('id').maybeSingle();
     action = 'agent_updated';
     targetId = id;
@@ -116,6 +119,23 @@ export async function POST(request: Request) {
     action = decision === 'approve' ? 'exam_pass_approved' : 'exam_pass_rejected';
     targetId = id;
     meta = { decision };
+    if (data && decision === 'approve') {
+      const { data: passOrder } = await admin.from('exam_pass_orders').select('user_id,expires_at').eq('id', id).maybeSingle();
+      if (passOrder?.user_id) {
+        try {
+          await enqueueUserNotification({
+            userId: passOrder.user_id,
+            dedupeKey: `exam-pass-approved:${id}`,
+            subject: 'Exam pass payment confirmed',
+            message: `Your exam pass has been approved and is active until ${passOrder.expires_at?.slice(0, 10) || 'its expiry date'}. Sign in to start your exam.`,
+            includeSms: true,
+            purpose: 'payment_confirmation',
+          });
+        } catch (notificationError) {
+          console.error('Exam pass was approved, but confirmation notifications could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+        }
+      }
+    }
   } else if (body.action === 'review_billing_order') {
     const { id, decision } = body;
     if (typeof id !== 'string' || !['approve','reject'].includes(decision)) return NextResponse.json({error:'Choose a pending payment and a valid decision.'},{status:400});
@@ -125,8 +145,10 @@ export async function POST(request: Request) {
     if (decision === 'approve' && !pkg) return NextResponse.json({error:'The selected package no longer exists.'},{status:409});
     const now = new Date(); const expiresAt = new Date(now.getTime() + Number(pkg?.duration_days || 0) * 86400000).toISOString();
     if (decision === 'approve' && order.product === 'exam_pass') {
+      if (!order.user_id) return NextResponse.json({ error: 'This exam payment is not linked to a candidate account.' }, { status: 409 });
       const passCode = `LWS-${randomBytes(8).toString('hex').toUpperCase()}`;
       const { error } = await admin.from('exam_pass_orders').insert({
+        user_id: order.user_id,
         name: order.metadata?.name || 'Student', phone: order.metadata?.phone || '', amount: order.amount, currency: order.currency,
         payment_method: order.provider, receipt_reference: `Manual QR payment ${order.id}`, status:'approved', pass_code:passCode,
         billing_order_id:order.id, package_code:order.package_code, expires_at:expiresAt,
@@ -147,11 +169,20 @@ export async function POST(request: Request) {
     result={data,error}; action=decision==='approve'?'billing_order_approved':'billing_order_rejected'; targetId=id; meta={decision,package_code:order.package_code,amount:order.amount};
     if(data&&order.metadata?.coupon_code){const {error:couponError}=await admin.rpc(decision==='approve'?'finalize_coupon':'release_coupon',{p_order_id:id});if(couponError){console.error('Coupon redemption accounting failed:',couponError.message);return NextResponse.json({error:'Payment status changed, but coupon accounting needs admin review.'},{status:500});}}
     if(data&&decision==='approve'){
-      const links='WhatsApp community: https://chat.whatsapp.com/IA5HndEQhscGMsMxnYi6uc · Facebook: https://www.facebook.com/share/1C2En4gvsg/';
-      const recipients:{channel:string;recipient:string;subject:string|null}[]=[];
-      if(order.user_id){const {data:profile}=await admin.from('profiles').select('email,phone').eq('id',order.user_id).maybeSingle();if(profile?.email)recipients.push({channel:'email',recipient:profile.email,subject:'Learn With Sulav subscription activated'});if(profile?.phone)recipients.push({channel:'sms',recipient:profile.phone,subject:null});}
-      else {const phone=String(order.metadata?.phone||'');if(phone)recipients.push({channel:'sms',recipient:phone,subject:null});}
-      for(const recipient of recipients)await admin.from('notification_outbox').insert({dedupe_key:`welcome:${id}`,channel:recipient.channel,recipient:recipient.recipient,subject:recipient.subject,message:`Your ${order.package_code} is active until ${expiresAt.slice(0,10)}. Amount paid: NPR ${order.amount}. ${links}`}).then(()=>{});
+      if (order.user_id) {
+        try {
+          await enqueueUserNotification({
+            userId: order.user_id,
+            dedupeKey: `payment-confirmed:${id}`,
+            subject: 'Payment confirmed',
+            message: `Your ${order.package_code} payment of NPR ${order.amount} has been confirmed. Access is active until ${expiresAt.slice(0, 10)}.`,
+            includeSms: true,
+            purpose: 'payment_confirmation',
+          });
+        } catch (notificationError) {
+          console.error('Payment was approved, but confirmation notifications could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+        }
+      }
     }
   } else if (body.action === 'update_subscription') {
     const { id, plan, status } = body;
@@ -169,9 +200,34 @@ export async function POST(request: Request) {
   } else if (body.action === 'save_company_rule') {
     const company = typeof body.company === 'string' ? body.company.trim().slice(0, 120) : '';
     const tdsRate = Number(body.tds_rate);
-    if (!company || !Number.isFinite(tdsRate) || tdsRate < 0 || tdsRate > 100) return NextResponse.json({ error: 'Enter a company name and TDS rate from 0 to 100.' }, { status: 400 });
-    result = await admin.from('company_rules').upsert({ company, tds_rate: tdsRate, tdi_rules: body.tdi_rules || {}, bdi_rules: body.bdi_rules || {}, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: 'company' }).select('id').single();
-    action = 'company_rules_updated'; meta = { company, tds_rate: tdsRate };
+    const validRates = (rules: unknown) => {
+      if (!rules || typeof rules !== 'object' || Array.isArray(rules)) return false;
+      return Object.entries(rules).every(([layer, rate]) =>
+        ['A', 'B', 'C', 'D'].includes(layer) &&
+        typeof rate === 'number' &&
+        Number.isFinite(rate) &&
+        rate >= 0 &&
+        rate <= 100
+      );
+    };
+    if (!company || !Number.isFinite(tdsRate) || tdsRate < 0 || tdsRate > 100 ||
+      !validRates(body.tdi_rules) || !validRates(body.bdi_rules)) {
+      return NextResponse.json({ error: 'Enter a company name, TDS rate from 0 to 100, and TDI/BDI layer percentages from 0 to 100.' }, { status: 400 });
+    }
+    const values = { company, tds_rate: tdsRate, tdi_rules: body.tdi_rules, bdi_rules: body.bdi_rules, updated_by: user.id, updated_at: new Date().toISOString() };
+    if (typeof body.id === 'string' && body.id) {
+      result = await admin.from('company_rules').update(values).eq('id', body.id).select('id').maybeSingle();
+    } else {
+      result = await admin.from('company_rules').upsert(values, { onConflict: 'company' }).select('id').single();
+    }
+    action = 'company_rules_updated';
+    targetId = typeof body.id === 'string' ? body.id : null;
+    meta = { company, tds_rate: tdsRate, tdi_rules: body.tdi_rules, bdi_rules: body.bdi_rules };
+  } else if (body.action === 'delete_company_rule') {
+    if (typeof body.id !== 'string' || !body.id) return NextResponse.json({ error: 'Choose a company rule to delete.' }, { status: 400 });
+    result = await admin.from('company_rules').delete().eq('id', body.id).select('id').maybeSingle();
+    action = 'company_rule_deleted';
+    targetId = body.id;
   } else if (body.action === 'create_coupon') {
     const code = typeof body.code === 'string' ? body.code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32) : '';
     const discount = Number(body.discount_percent);
@@ -207,7 +263,7 @@ export async function POST(request: Request) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated','coupon_activated','coupon_deactivated'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated','coupon_activated','coupon_deactivated','company_rules_updated','company_rule_deleted'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
@@ -218,4 +274,3 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ ok: true, id: targetId });
 }
-

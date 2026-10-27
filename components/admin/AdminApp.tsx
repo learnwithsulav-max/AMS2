@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { adminGet, adminPost } from '@/lib/admin-api';
 import { useAuth } from '@/lib/auth';
-import { PLANS, calcIncentive, layersOf, monthEnd, monthStart, npr, planName, today, weightPct, weighted } from '@/lib/rules';
+import { PLANS, calcIncentive, companyRulesToRateMap, layersOf, monthEnd, monthStart, npr, planName, today, weightPct, weighted } from '@/lib/rules';
 import { STAGES } from '../agency/Kanban';
 import { schemeTone } from '../agency/Schemes';
 import { AuthCard } from '../AuthCard';
@@ -142,6 +142,7 @@ function Dashboard() {
           { k: 'referral_code', h: 'Referral code' }, { k: 'upline', h: 'Upline', render: (r) => name[r.upline_id] || '-', csv: (r) => name[r.upline_id] || '' },
           { k: 'membership', h: 'Membership', render: (r) => <Sel v={r.membership} opts={['free', 'premium']} on={(v) => mutate({ action: 'update_agent', id: r.id, membership: v })} /> },
           { k: 'status', h: 'Status', render: (r) => <Sel v={r.status} opts={['active', 'suspended']} on={(v) => mutate({ action: 'update_agent', id: r.id, status: v })} /> },
+          { k: 'exam_enabled', h: 'Exam enabled', render: (r: any) => <Sel v={r.exam_enabled ? 'true' : 'false'} opts={['true', 'false']} on={(v) => mutate({ action: 'update_agent', id: r.id, exam_enabled: v === 'true' })} /> },
           { k: 'created_at', h: 'Joined', render: (r) => r.created_at?.slice(0, 10) },
         ]} />
       )}
@@ -212,7 +213,7 @@ function Dashboard() {
           { k: 'approved', h: 'Status', render: (r) => r.approved ? <Btn variant="ghost" onClick={() => mutate({ action: 'moderate_review', id: r.id, approved: false })}>Published · hide</Btn> : <Btn onClick={() => mutate({ action: 'moderate_review', id: r.id, approved: true })}>Approve</Btn> },
         ]} />}
 
-      {tab === 'Finance' && <Finance P={P} POL={POL} inRange={inRange} name={name} from={from} to={to} setFrom={setFrom} setTo={setTo} reload={load} mutate={mutate} />}
+      {tab === 'Finance' && <Finance P={P} POL={POL} inRange={inRange} name={name} companies={d.company_rules || []} from={from} to={to} setFrom={setFrom} setTo={setTo} reload={load} mutate={mutate} />}
       {tab === 'Schemes' && <Schemes P={P} schemes={d.schemes || []} status={d.scheme_status || []} mutate={mutate} />}
       {tab === 'Logs' && <DataTable name="activity-log" rows={d.activity_log || []} page={pages.activity_log || 1} total={counts.activity_log || 0} pageSize={PAGE_SIZE}
         onPageChange={(page) => changePage('activity_log', page)} onSearch={(search) => searchTable('activity_log', search)} cols={[
@@ -260,7 +261,7 @@ function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any;
   }
   return <div className="grid gap-6">
     <form onSubmit={save} className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5">
-      <div><h2 className="font-bold">Exam pass settings</h2><p className="mt-1 text-sm text-slate-600">Set a price in NPR to enable paid passes. A zero price disables sales and keeps the current exam access behavior.</p></div>
+      <div><h2 className="font-bold">Exam pass settings</h2><p className="mt-1 text-sm text-slate-600">Set a price in NPR to enable paid passes. Candidates must sign in and have an active, approved pass before starting an exam.</p></div>
       <Field label="Price per attempt (NPR)" required type="number" min="0" max="1000000" step="0.01" value={price} onChange={(e: any) => setPrice(e.target.value)} />
       <label className="grid gap-1 text-sm font-medium">Payment instructions for customers<textarea maxLength={2000} rows={3} value={instructions} onChange={(e) => setInstructions(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-normal" placeholder="Wallet ID, bank details, or contact instructions" /></label>
       <Btn type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save pass settings'}</Btn>
@@ -278,20 +279,54 @@ function ExamPassAdmin({ settings, orders, mutate, onRefresh }: { settings: any;
 function Configuration({ companies, coupons, mutate }: { companies: any[]; coupons: any[]; mutate: (payload: Record<string, unknown>) => Promise<boolean> }) {
   const [company, setCompany] = useState(''); const [tds, setTds] = useState('20');
   const [tdi, setTdi] = useState('{"A":100,"B":4,"C":2,"D":1}'); const [bdi, setBdi] = useState('{"A":100,"B":4,"C":2,"D":1}');
+  const [editingId, setEditingId] = useState('');
   const [code, setCode] = useState(''); const [discount, setDiscount] = useState(''); const [from, setFrom] = useState(''); const [until, setUntil] = useState(''); const [maxUses,setMaxUses]=useState('');
   const [error, setError] = useState('');
+  const clearCompanyForm = () => {
+    setEditingId('');
+    setCompany('');
+    setTds('20');
+    setTdi('{"A":100,"B":4,"C":2,"D":1}');
+    setBdi('{"A":100,"B":4,"C":2,"D":1}');
+    setError('');
+  };
   return <div className="grid gap-6 lg:grid-cols-2">
-    <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Company tax rules</h2><p className="mt-1 text-sm text-slate-600">TDS is applied to the gross commission when a policy is saved.</p></div>
-      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); setError(''); try { const tdiRules = JSON.parse(tdi); const bdiRules = JSON.parse(bdi); if (await mutate({ action: 'save_company_rule', company, tds_rate: Number(tds), tdi_rules: tdiRules, bdi_rules: bdiRules })) { setCompany(''); setTds('20'); } } catch { setError('Enter valid JSON for the TDI and BDI layer percentages.'); } }}>
+    <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Company tax and incentive rules</h2><p className="mt-1 text-sm text-slate-600">TDS is applied to gross commission. TDI and BDI layer rates can be configured independently for each company.</p></div>
+      <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); setError(''); try { const tdiRules = JSON.parse(tdi); const bdiRules = JSON.parse(bdi); if (await mutate({ action: 'save_company_rule', ...(editingId ? { id: editingId } : {}), company, tds_rate: Number(tds), tdi_rules: tdiRules, bdi_rules: bdiRules })) clearCompanyForm(); } catch { setError('Enter valid JSON for the TDI and BDI layer percentages.'); } }}>
         <Field label="Insurance company" required value={company} onChange={(e: any) => setCompany(e.target.value)} />
         <Field label="TDS rate (%)" type="number" min="0" max="100" step="0.01" required value={tds} onChange={(e: any) => setTds(e.target.value)} />
         <label className="grid gap-1 text-sm font-medium">TDI layer rates (%)<textarea rows={2} value={tdi} onChange={(e) => setTdi(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal" /></label>
         <label className="grid gap-1 text-sm font-medium">BDI layer rates (%)<textarea rows={2} value={bdi} onChange={(e) => setBdi(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal" /></label>
-        <p className="text-xs text-slate-500">Use JSON such as {'{"A":100,"B":4,"C":2,"D":1}'}; rates are percentages.</p>
+        <p className="text-xs text-slate-500">Enter independent A/B/C/D percentages, for example {'{"A":100,"B":4,"C":2,"D":1}'}.</p>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-        <Btn type="submit">Save company rule</Btn>
+        <div className="flex flex-wrap gap-2">
+          <Btn type="submit">{editingId ? 'Update company rules' : 'Save company rule'}</Btn>
+          {editingId && <Btn type="button" variant="ghost" onClick={clearCompanyForm}>Cancel edit</Btn>}
+        </div>
       </form>
-      <DataTable name="company-rules" rows={companies} cols={[{ k: 'company', h: 'Company' }, { k: 'tds_rate', h: 'TDS %' }, { k: 'updated_at', h: 'Updated', render: (r) => r.updated_at?.slice(0, 10) }]} />
+      <DataTable name="company-rules" rows={companies} cols={[
+        { k: 'company', h: 'Company' },
+        { k: 'tds_rate', h: 'TDS %' },
+        { k: 'tdi_rules', h: 'TDI layer %', render: (r) => JSON.stringify(r.tdi_rules || {}) },
+        { k: 'bdi_rules', h: 'BDI layer %', render: (r) => JSON.stringify(r.bdi_rules || {}) },
+        { k: 'updated_at', h: 'Updated', render: (r) => r.updated_at?.slice(0, 10) },
+        { k: 'actions', h: 'Actions', render: (r) => <div className="flex gap-2">
+          <button type="button" className="text-xs font-semibold text-[#0A4F8A] underline" onClick={() => {
+            setEditingId(r.id);
+            setCompany(r.company || '');
+            setTds(String(r.tds_rate ?? 20));
+            setTdi(JSON.stringify(r.tdi_rules || {}));
+            setBdi(JSON.stringify(r.bdi_rules || {}));
+            setError('');
+          }}>Edit</button>
+          <button type="button" className="text-xs font-semibold text-red-700 underline" onClick={() => {
+            if (window.confirm(`Delete incentive and TDS rules for ${r.company}? Calculations will fall back to the system default.`)) {
+              void mutate({ action: 'delete_company_rule', id: r.id });
+              if (editingId === r.id) clearCompanyForm();
+            }
+          }}>Delete</button>
+        </div> },
+      ]} />
     </Card>
     <Card className="grid content-start gap-4 p-5"><div><h2 className="font-bold">Coupon codes</h2><p className="mt-1 text-sm text-slate-600">Coupons are stored for subscription and checkout validation.</p></div>
       <form className="grid gap-3" onSubmit={async (e) => { e.preventDefault(); if (await mutate({ action: 'create_coupon', code, discount_percent: Number(discount), valid_from: from || null, valid_until: until || null, max_redemptions:maxUses||null })) { setCode(''); setDiscount(''); setFrom(''); setUntil(''); setMaxUses(''); } }}>
@@ -318,7 +353,8 @@ function Sel({ v, opts, on }: { v: string; opts: string[]; on: (v: string) => vo
   return <select value={v} onChange={(e) => on(e.target.value)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm">{opts.map((o) => <option key={o}>{o}</option>)}</select>;
 }
 
-function Finance({ P, POL, inRange, name, from, to, setFrom, setTo, mutate }: any) {
+function Finance({ P, POL, inRange, name, companies, from, to, setFrom, setTo, mutate }: any) {
+  const companyRates = companyRulesToRateMap(companies);
   const [f, setF] = useState<any>({ plan_type: 'endowment', premium_mode: 'regular', term_years: 15, issue_date: today() });
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const agents = P.filter((p: any) => p.role === 'agent');
@@ -326,7 +362,7 @@ function Finance({ P, POL, inRange, name, from, to, setFrom, setTo, mutate }: an
   const rows = agents.map((a: any) => {
     const L = layersOf(a.id, P);
     const prod = (['A', 'B', 'C', 'D'] as const).flatMap((l) => inRange.filter((p: any) => L[l].includes(p.agent_id)).map((p: any) => ({ ...p, layer: l })));
-    const tdi = calcIncentive(prod, 'TDI'), bdi = calcIncentive(prod, 'BDI');
+    const tdi = calcIncentive(prod, 'TDI', companyRates), bdi = calcIncentive(prod, 'BDI', companyRates);
     const self = inRange.filter((p: any) => p.agent_id === a.id);
     return { id: a.id, name: a.name, count: self.length, premium: self.reduce((s: number, p: any) => s + Number(p.premium), 0), weighted: self.reduce((s: number, p: any) => s + weighted(p), 0), tdi: tdi.totalCredit, bdi: bdi.totalCredit };
   });
@@ -436,4 +472,3 @@ function Schemes({ P, schemes, status, mutate }: any) {
     </div>
   );
 }
-

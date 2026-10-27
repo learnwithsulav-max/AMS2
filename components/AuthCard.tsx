@@ -124,6 +124,7 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
             upline_code: f.upline_code,
             address: f.address,
             branch: f.branch,
+            whatsapp_opt_in: !!f.whatsapp_opt_in,
           },
         },
       });
@@ -305,6 +306,15 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
                   className="sm:col-span-2"
                   onChange={(e: any) => setPhoto(e.target.files?.[0] || null)}
                 />
+                <label className="flex items-start gap-2 text-sm font-normal text-slate-700 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={!!f.whatsapp_opt_in}
+                    onChange={(e) => setF({ ...f, whatsapp_opt_in: e.target.checked })}
+                    className="mt-1"
+                  />
+                  <span>Receive agency and account notifications on WhatsApp (optional). SMS is only used for OTP and payment confirmation.</span>
+                </label>
               </>
             )}
 

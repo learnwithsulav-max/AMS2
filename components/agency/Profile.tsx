@@ -14,6 +14,7 @@ export function Profile({ profile, reload }: { profile: any; reload: () => void 
     pan_number: profile.pan_number || '',
     address: profile.address || '',
     branch: profile.branch || '',
+    whatsapp_opt_in: !!profile.whatsapp_opt_in,
   });
   const [msg, setMsg] = useState('');
   const [stats, setStats] = useState({ count: 0, premium: 0, downlineCount: 0 });
@@ -136,6 +137,15 @@ export function Profile({ profile, reload }: { profile: any; reload: () => void 
         </div>
 
         <Field label="Address / City" value={f.address} onChange={set('address')} />
+        <label className="flex items-start gap-2 text-sm font-normal text-slate-700 sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={f.whatsapp_opt_in}
+            onChange={(event) => setF({ ...f, whatsapp_opt_in: event.target.checked })}
+            className="mt-1"
+          />
+          <span>Receive account, agency and exam notifications on WhatsApp. SMS remains limited to OTP and payment confirmation.</span>
+        </label>
         <Field label="Update Profile Photo" type="file" accept="image/*" className="sm:col-span-2" onChange={photo} />
 
         {msg && (

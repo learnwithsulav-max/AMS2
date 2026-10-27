@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 import { siteUrl } from '@/lib/brand';
+import { enqueueUserNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 function redirect(path: string) { return NextResponse.redirect(path, { status: 303 }); }
@@ -25,6 +26,7 @@ async function markPaid(order: any, transaction: string, request: Request) {
     const { error: profileError } = await admin.from('profiles').update({ membership: 'premium' }).eq('id', order.user_id);
     if (profileError) throw profileError;
   } else {
+    if (!order.user_id) throw new Error('Exam pass payment is not linked to a candidate account.');
     const meta = order.metadata || {};
     const { data: existing, error: existingError } = await admin.from('exam_pass_orders').select('pass_code').eq('billing_order_id', order.id).maybeSingle();
     if (existingError) throw existingError;
@@ -33,7 +35,7 @@ async function markPaid(order: any, transaction: string, request: Request) {
       const {data:pkg}=await admin.from('subscription_packages').select('duration_days').eq('code',order.package_code||'exam_pro_month').maybeSingle();
       const expiresAt=new Date(Date.now()+Number(pkg?.duration_days||30)*86400000).toISOString();
       const claim = randomBytes(32).toString('hex');
-      const { error } = await admin.from('exam_pass_orders').insert({ billing_order_id: order.id, name: meta.name, phone: meta.phone,
+      const { error } = await admin.from('exam_pass_orders').insert({ billing_order_id: order.id, user_id: order.user_id, name: meta.name, phone: meta.phone,
         amount: order.amount, currency: order.currency, payment_method: order.provider, receipt_reference: transaction,
         claim_token_hash: createHash('sha256').update(claim).digest('hex'), status: 'approved', pass_code: passCode,
         package_code:order.package_code||'exam_pro_month',expires_at:expiresAt,reviewed_by: 'payment provider', reviewed_at: new Date().toISOString() });
@@ -44,6 +46,20 @@ async function markPaid(order: any, transaction: string, request: Request) {
   const { error: updateError } = await admin.from('billing_orders').update({ status: 'paid', provider_transaction: transaction, metadata: order.metadata || {}, updated_at: new Date().toISOString() }).eq('id', order.id).eq('status', 'pending');
   if (updateError) throw updateError;
   if(order.metadata?.coupon_code){const {error}=await admin.rpc('finalize_coupon',{p_order_id:order.id});if(error)throw error;}
+  if (order.user_id) {
+    try {
+      await enqueueUserNotification({
+        userId: order.user_id,
+        dedupeKey: `payment-confirmed:${order.id}`,
+        subject: 'Payment confirmed',
+        message: `${order.package_code} payment of NPR ${order.amount} has been confirmed. Your access has been activated.`,
+        includeSms: true,
+        purpose: 'payment_confirmation',
+      });
+    } catch (error) {
+      console.error('Payment was confirmed, but confirmation notifications could not be queued:', error instanceof Error ? error.message : 'unknown error');
+    }
+  }
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;
   await admin.from('activity_log').insert({ actor: order.user_id || 'exam candidate', action: 'billing_order_paid', meta: { order_id: order.id, product: order.product, provider: order.provider, ip, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
   return passCode;
