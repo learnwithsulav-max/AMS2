@@ -9,7 +9,7 @@ export async function requireExamCandidate(request: Request) {
 
   const { data: profile, error } = await admin
     .from('profiles')
-    .select('id,name,email,phone,portal_type,whatsapp_opt_in,exam_enabled')
+    .select('id,name,email,phone,portal_type,whatsapp_opt_in')
     .eq('id', auth.user.id)
     .maybeSingle();
 
@@ -25,13 +25,6 @@ export async function requireExamCandidate(request: Request) {
       user: null,
       profile: null,
       response: NextResponse.json({ error: 'Use an exam candidate account to continue.' }, { status: 403 }),
-    };
-  }
-  if (!profile.exam_enabled) {
-    return {
-      user: null,
-      profile: null,
-      response: NextResponse.json({ error: 'Your account is not yet enabled for the exam. Please complete payment and wait for admin approval.' }, { status: 403 }),
     };
   }
 

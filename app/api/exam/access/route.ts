@@ -5,7 +5,7 @@ import { admin } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const { user, profile, response } = await requireExamCandidate(request);
+  const { user, response } = await requireExamCandidate(request);
   if (response) return response;
 
   const now = new Date().toISOString();
@@ -38,6 +38,5 @@ export async function GET(request: Request) {
     active: !!pass,
     expiresAt: pass?.expires_at || null,
     pending: !!pending,
-    examEnabled: profile?.exam_enabled || false,
   });
 }

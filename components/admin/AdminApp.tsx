@@ -142,7 +142,6 @@ function Dashboard() {
           { k: 'referral_code', h: 'Referral code' }, { k: 'upline', h: 'Upline', render: (r) => name[r.upline_id] || '-', csv: (r) => name[r.upline_id] || '' },
           { k: 'membership', h: 'Membership', render: (r) => <Sel v={r.membership} opts={['free', 'premium']} on={(v) => mutate({ action: 'update_agent', id: r.id, membership: v })} /> },
           { k: 'status', h: 'Status', render: (r) => <Sel v={r.status} opts={['active', 'suspended']} on={(v) => mutate({ action: 'update_agent', id: r.id, status: v })} /> },
-          { k: 'exam_enabled', h: 'Exam enabled', render: (r: any) => <Sel v={r.exam_enabled ? 'true' : 'false'} opts={['true', 'false']} on={(v) => mutate({ action: 'update_agent', id: r.id, exam_enabled: v === 'true' })} /> },
           { k: 'created_at', h: 'Joined', render: (r) => r.created_at?.slice(0, 10) },
         ]} />
       )}

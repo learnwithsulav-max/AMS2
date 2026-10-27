@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Btn, Card, Field, LinkBtn, Badge, cx, Modal } from '../ui';
+import { Btn, Card, Field, LinkBtn, Badge, cx } from '../ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, EXAM } from '@/lib/brand';
 import { downloadPdf, downloadPng, renderCertificate } from './certificate';
@@ -26,7 +26,6 @@ export default function ExamApp() {
   const [saved, setSaved] = useState<any>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [payFirstOpen, setPayFirstOpen] = useState(false);
   const offset = useRef(0);
   const submitting = useRef(false);
 
@@ -68,7 +67,7 @@ export default function ExamApp() {
   async function start(e: any) {
     e.preventDefault();
     if (!session?.access_token || !access?.active) {
-      setPayFirstOpen(true);
+      setErr('An active, approved exam pass is required before starting.');
       return;
     }
     setBusy(true); setErr('');
@@ -141,58 +140,47 @@ export default function ExamApp() {
       );
     }
       return (
-        <>
-          <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10">
-            <Card className="p-6">
-              <h1 className="text-2xl font-extrabold">{t('exam_login_title')}</h1>
-              <p className="mt-2 text-slate-600">{t('exam_rules')}</p>
-              <p className="mt-2 text-sm text-slate-600">Signed in as <b>{profile.name || session.user.email}</b>.</p>
-              <Btn variant="ghost" className="mt-3" onClick={signOut}>Log out</Btn>
-              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" aria-live="polite">
-                {accessError ? <p className="text-red-700">{accessError}</p> : access?.active
-                  ? <p className="text-emerald-800">Exam pass active until {new Date(access.expiresAt).toLocaleDateString()}.</p>
-                  : access?.pending ? <p className="text-amber-800">Your payment is being reviewed. You can start after it is approved.</p>
-                  : <p className="text-slate-700">An approved, paid exam pass is required to start.</p>}
+        <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10">
+          <Card className="p-6">
+            <h1 className="text-2xl font-extrabold">{t('exam_login_title')}</h1>
+            <p className="mt-2 text-slate-600">{t('exam_rules')}</p>
+            <p className="mt-2 text-sm text-slate-600">Signed in as <b>{profile.name || session.user.email}</b>.</p>
+            <Btn variant="ghost" className="mt-3" onClick={signOut}>Log out</Btn>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" aria-live="polite">
+              {accessError ? <p className="text-red-700">{accessError}</p> : access?.active
+                ? <p className="text-emerald-800">Exam pass active until {new Date(access.expiresAt).toLocaleDateString()}.</p>
+                : access?.pending ? <p className="text-amber-800">Your payment is being reviewed. You can start after it is approved.</p>
+                : <p className="text-slate-700">An approved, paid exam pass is required to start.</p>}
+            </div>
+            {saved && (
+              <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm">
+                <p className="font-semibold">{saved.attempt.name}</p>
+                <Btn className="mt-2" onClick={() => begin(saved.attempt, saved.answers, saved.page)}>{t('resume')}</Btn>
               </div>
-              {saved && (
-                <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm">
-                  <p className="font-semibold">{saved.attempt.name}</p>
-                  <Btn className="mt-2" onClick={() => begin(saved.attempt, saved.answers, saved.page)}>{t('resume')}</Btn>
-                </div>
-              )}
-              <form onSubmit={start} className="mt-5 grid gap-4">
-                {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
-                <Btn type="submit" disabled={busy || !access?.active}>{busy ? 'Starting...' : t('start')}</Btn>
-              </form>
-            </Card>
-            <PassPurchase
-              accessToken={session.access_token}
-              candidateName={profile.name || session.user.email || 'Candidate'}
-              candidatePhone={profile.phone || ''}
-            />
-            <Card className="p-6">
-              <h2 className="font-bold">{t('history')}</h2>
-              <ul className="mt-3 grid gap-2 text-sm">
-                {history.map((h, i) => (
-                  <li key={i} className="flex items-center justify-between">
-                    <span className="text-slate-600">{new Date(h.at).toLocaleDateString()}</span>
-                    <span><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
-                  </li>
-                ))}
-                {!history.length && <li className="text-slate-500">-</li>}
-              </ul>
-            </Card>
-          </div>
-          {payFirstOpen && (
-            <Modal title={t('pay_first_title')} onClose={() => setPayFirstOpen(false)}>
-              <p className="mb-4 text-sm text-slate-700">{t('pay_first_body')}</p>
-              <div className="flex justify-end gap-2">
-                <Btn variant="ghost" onClick={() => setPayFirstOpen(false)}>{t('pay_first_cancel')}</Btn>
-                <Btn onClick={() => { setPayFirstOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{t('pay_first_cta')}</Btn>
-              </div>
-            </Modal>
-          )}
-        </>
+            )}
+            <form onSubmit={start} className="mt-5 grid gap-4">
+              {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+              <Btn type="submit" disabled={busy || !access?.active}>{busy ? 'Starting...' : t('start')}</Btn>
+            </form>
+          </Card>
+          <PassPurchase
+            accessToken={session.access_token}
+            candidateName={profile.name || session.user.email || 'Candidate'}
+            candidatePhone={profile.phone || ''}
+          />
+          <Card className="p-6">
+            <h2 className="font-bold">{t('history')}</h2>
+            <ul className="mt-3 grid gap-2 text-sm">
+              {history.map((h, i) => (
+                <li key={i} className="flex items-center justify-between">
+                  <span className="text-slate-600">{new Date(h.at).toLocaleDateString()}</span>
+                  <span><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
+                </li>
+              ))}
+              {!history.length && <li className="text-slate-500">-</li>}
+            </ul>
+          </Card>
+        </div>
       );
   }
 

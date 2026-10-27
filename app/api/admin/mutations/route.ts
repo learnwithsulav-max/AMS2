@@ -39,17 +39,15 @@ export async function POST(request: Request) {
   let result: { error: { message: string } | null; data?: { id?: string } | null };
 
   if (body.action === 'update_agent') {
-    const { id, membership, status, exam_enabled } = body;
+    const { id, membership, status } = body;
     const invalidMembership = membership !== undefined && !['free', 'premium'].includes(membership);
     const invalidStatus = status !== undefined && !['active', 'suspended'].includes(status);
-    if (typeof id !== 'string' || !id || invalidMembership || invalidStatus ||
-      (membership === undefined && status === undefined && exam_enabled === undefined)) {
-      return NextResponse.json({ error: 'Provide an agent ID and a valid membership, status, or exam_enabled.' }, { status: 400 });
+    if (typeof id !== 'string' || !id || invalidMembership || invalidStatus || (membership === undefined && status === undefined)) {
+      return NextResponse.json({ error: 'Provide an agent ID and a valid membership or status.' }, { status: 400 });
     }
-    const values: Record<string, string | boolean> = {};
+    const values: Record<string, string> = {};
     if (membership !== undefined) values.membership = membership;
     if (status !== undefined) values.status = status;
-    if (exam_enabled !== undefined) values.exam_enabled = exam_enabled === true || exam_enabled === 'true';
     result = await admin.from('profiles').update(values).eq('id', id).eq('role', 'agent').select('id').maybeSingle();
     action = 'agent_updated';
     targetId = id;
