@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { LinkBtn, Card } from '@/components/ui';
 import { useI18n } from '@/lib/i18n';
@@ -8,8 +8,15 @@ import { adToBs, getTodayGreeting } from '@/lib/nepali-date';
 
 export default function Landing() {
   const { t } = useI18n();
-  const bs = useMemo(() => adToBs(), []);
-  const greeting = useMemo(() => getTodayGreeting(), []);
+  const [today, setToday] = useState<{ bs: ReturnType<typeof adToBs>; greeting: ReturnType<typeof getTodayGreeting> } | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    setToday({ bs: adToBs(now), greeting: getTodayGreeting(now) });
+  }, []);
+
+  const bs = today?.bs;
+  const greeting = today?.greeting;
 
   const portals = [
     { k: 'exam' as const, label: t('nav_exam'), host: 'exam.sulavs.com.np', desc: 'Mock tests, questions, and instant certificate' },
@@ -32,7 +39,7 @@ export default function Landing() {
   return (
     <Shell site="root">
       {/* Live Nepal BS Date & Today's Occasion Banner */}
-      <div className="border-b border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 px-4 py-3 text-slate-800">
+      {bs && greeting && <div className="border-b border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 px-4 py-3 text-slate-800">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-[#F15A24] px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs">
@@ -55,7 +62,7 @@ export default function Landing() {
             </a>
           </div>
         </div>
-      </div>
+      </div>}
 
       <section className="bg-navy text-white">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 lg:grid-cols-[1.4fr_1fr] lg:py-24">

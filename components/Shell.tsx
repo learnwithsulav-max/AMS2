@@ -81,7 +81,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
 
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <a href={siteUrl('root')} aria-label={`${BRAND.name} home`}>
+          <a href={siteUrl('root')} suppressHydrationWarning aria-label={`${BRAND.name} home`}>
             <Logo />
           </a>
           <nav className="hidden gap-1 md:flex" aria-label="Portals">
@@ -89,6 +89,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
               <a
                 key={k}
                 href={siteUrl(k)}
+                suppressHydrationWarning
                 className={cx(
                   'rounded-md px-3 py-2 text-sm font-medium transition',
                   site === k ? 'bg-paper text-navy ring-1 ring-gold/40' : 'text-slate-600 hover:text-navy'
@@ -111,7 +112,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
         <p>{BRAND.trustBadge}</p>
         <p className="mt-1">
           © {new Date().getFullYear()} {BRAND.name}.{' '}
-          <a className="underline" href={siteUrl('admin')}>
+          <a className="underline" href={siteUrl('admin')} suppressHydrationWarning>
             Admin
           </a>
         </p>

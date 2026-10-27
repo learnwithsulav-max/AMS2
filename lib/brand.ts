@@ -24,13 +24,9 @@ export const EXAM = {
 export type SiteKey = 'root' | 'agency' | 'exam' | 'admin';
 
 export function siteUrl(site: SiteKey) {
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname.toLowerCase();
-    const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '');
-    if (host !== root && host !== `www.${root}` && !host.endsWith(`.${root}`)) {
-      return site === 'root' ? '/' : `/?site=${site}`;
-    }
-  }
+  // Keep internal portal URLs identical during SSR and hydration. Runtime host
+  // detection here caused the server to render absolute URLs and the browser
+  // to replace them with preview-relative URLs before hydration completed.
   const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '');
   return site === 'root' ? `https://www.${root}` : `https://${site}.${root}`;
 }
