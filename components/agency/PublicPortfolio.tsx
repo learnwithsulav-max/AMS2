@@ -37,7 +37,7 @@ export function PublicPortfolio({ profile }: { profile: any }) {
     setBusy(false);
     setMessage(error ? (error.code === '23505' ? 'That portfolio link is already in use.' : error.message) : 'Public profile saved.');
   }
-  const link = value.slug ? `${siteUrl('root')}/agents/${value.slug}` : '';
+  const link = value.slug ? `${siteUrl('agency')}/${value.slug}` : '';
   if (!loaded) return <p className="p-8 text-center text-slate-500">Loading public profile…</p>;
 
   return <div className="mx-auto grid max-w-3xl gap-5"><Card className="p-6">

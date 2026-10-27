@@ -179,7 +179,7 @@ export default function Agency() {
           ) : tab === 'marketing' ? (
             <MarketingKit
               profile={profile}
-              url={typeof window !== 'undefined' ? `${window.location.origin}/agents/${profile.id}` : `${siteUrl('root')}/agents/${profile.id}`}
+              url={typeof window !== 'undefined' ? `${window.location.origin}/${profile.id}` : `${siteUrl('agency')}/${profile.id}`}
             />
           ) : tab === 'profile' ? (
             <Profile profile={profile} reload={reload} />
