@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
@@ -144,15 +144,41 @@ export async function POST(request: Request) {
     const now = new Date(); const expiresAt = new Date(now.getTime() + Number(pkg?.duration_days || 0) * 86400000).toISOString();
     if (decision === 'approve' && order.product === 'exam_pass') {
       if (!order.user_id) return NextResponse.json({ error: 'This exam payment is not linked to a candidate account.' }, { status: 409 });
-      const passCode = `LWS-${randomBytes(8).toString('hex').toUpperCase()}`;
-      const { error } = await admin.from('exam_pass_orders').insert({
-        user_id: order.user_id,
-        name: order.metadata?.name || 'Student', phone: order.metadata?.phone || '', amount: order.amount, currency: order.currency,
-        payment_method: order.provider, receipt_reference: `Manual QR payment ${order.id}`, status:'approved', pass_code:passCode,
-        billing_order_id:order.id, package_code:order.package_code, expires_at:expiresAt,
-        reviewed_by:user.email || user.id, reviewed_at:now.toISOString(),
-      });
-      if (error) { console.error('Timed exam pass activation failed:',error.message); return NextResponse.json({error:'Payment is verified, but pass activation failed. Retry review.'},{status:500}); }
+      const { data: existingPass, error: existingPassError } = await admin.from('exam_pass_orders')
+        .select('id,user_id,package_code,status,pass_code')
+        .eq('billing_order_id', order.id).maybeSingle();
+      if (existingPassError) {
+        console.error('Timed exam pass activation could not be checked:', existingPassError.message);
+        return NextResponse.json({ error: 'Payment is verified, but pass activation could not be checked. Retry review.' }, { status: 500 });
+      }
+      if (existingPass) {
+        if (existingPass.user_id !== order.user_id || existingPass.package_code !== order.package_code || existingPass.status !== 'approved' || !existingPass.pass_code) {
+          return NextResponse.json({ error: 'A conflicting exam pass is linked to this payment. Contact support before retrying.' }, { status: 409 });
+        }
+      } else {
+        const passCode = `LWS-${randomBytes(8).toString('hex').toUpperCase()}`;
+        // This private token hash is required by the pass table. The authenticated billing-order flow
+        // is used for voucher purchases, so the raw token is intentionally never exposed or stored.
+        const claimTokenHash = createHash('sha256').update(randomBytes(32)).digest('hex');
+        const { error: insertError } = await admin.from('exam_pass_orders').insert({
+          user_id: order.user_id,
+          name: order.metadata?.name || 'Student', phone: order.metadata?.phone || '', amount: order.amount, currency: order.currency,
+          payment_method: order.provider, receipt_reference: `Manual QR payment ${order.id}`, status:'approved', pass_code:passCode,
+          billing_order_id:order.id, package_code:order.package_code, expires_at:expiresAt,
+          claim_token_hash: claimTokenHash,
+          reviewed_by:user.email || user.id, reviewed_at:now.toISOString(),
+        });
+        if (insertError) {
+          // A second admin can approve the same pending payment at nearly the same time.
+          // Re-read the unique billing-order record so that a successful concurrent insert is safe to retry.
+          const { data: racedPass } = await admin.from('exam_pass_orders')
+            .select('user_id,package_code,status,pass_code').eq('billing_order_id', order.id).maybeSingle();
+          if (!racedPass || racedPass.user_id !== order.user_id || racedPass.package_code !== order.package_code || racedPass.status !== 'approved' || !racedPass.pass_code) {
+            console.error('Timed exam pass activation failed:',insertError.message);
+            return NextResponse.json({error:'Payment is verified, but pass activation failed. Retry review.'},{status:500});
+          }
+        }
+      }
     } else if (decision === 'approve') {
       const { data: subscription } = await admin.from('agency_subscriptions').select('id,agent_id,period_ends_at').eq('agent_id',order.user_id).maybeSingle();
       if (!subscription) return NextResponse.json({error:'Agency subscription record was not found.'},{status:409});
@@ -261,7 +287,7 @@ export async function POST(request: Request) {
     console.error(`Admin action ${action || body.action} failed:`, result.error.message);
     return NextResponse.json({ error: 'The change could not be saved. Please try again.' }, { status: 500 });
   }
-  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated','coupon_activated','coupon_deactivated','company_rules_updated','company_rule_deleted'].includes(action)) {
+  if (!result.data?.id && ['agent_updated', 'scheme_activated', 'scheme_deactivated', 'exam_pass_approved', 'exam_pass_rejected', 'billing_order_approved', 'billing_order_rejected', 'portfolio_review_approved', 'portfolio_review_rejected','agency_feedback_status_updated','question_report_status_updated','coupon_activated','coupon_deactivated','company_rules_updated','company_rule_deleted'].includes(action)) {
     return NextResponse.json({ error: 'The requested record was not found or is not eligible for this change.' }, { status: 404 });
   }
   if (!targetId) targetId = result.data?.id || null;
