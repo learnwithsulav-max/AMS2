@@ -10,7 +10,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   up uuid;
@@ -21,9 +21,9 @@ begin
     else 'agent'
   end;
   if account_type = 'agent' then
-    select id into up
-      from public.profiles
-      where referral_code = upper(trim(coalesce(new.raw_user_meta_data ->> 'upline_code', '')));
+    select p.id into up
+      from public.profiles as p
+      where p.referral_code = upper(trim(coalesce(new.raw_user_meta_data ->> 'upline_code', '')));
   end if;
   insert into public.profiles (
     id, email, name, phone, license_no, address, branch, upline_id,
@@ -47,7 +47,7 @@ create or replace function public.seed_agency_trial()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if new.portal_type = 'agent' then
@@ -104,6 +104,10 @@ where old.channel = 'sms'
   and old.status in ('pending', 'failed')
   and old.purpose <> 'payment_confirmation'
   and exists (
+    select 1 from public.profiles AS p
+    where p.phone = old.recipient and p.whatsapp_opt_in
+  )
+  and exists (
     select 1 from public.notification_outbox replacement
     where replacement.dedupe_key = old.dedupe_key
       and replacement.recipient = old.recipient
@@ -113,7 +117,24 @@ update public.notification_outbox
 set channel = 'whatsapp', purpose = 'general', locked_at = null
 where channel = 'sms'
   and status in ('pending', 'failed')
-  and purpose <> 'payment_confirmation';
+  and purpose <> 'payment_confirmation'
+  and exists (
+    select 1 from public.profiles AS p
+    where p.phone = notification_outbox.recipient and p.whatsapp_opt_in
+  );
+
+-- Do not move pending reminders to WhatsApp without explicit channel consent.
+update public.notification_outbox AS pending_sms
+set status = 'failed',
+    attempts = greatest(pending_sms.attempts, 5),
+    last_error = 'Legacy SMS reminder was not sent because WhatsApp consent was not recorded.'
+where pending_sms.channel = 'sms'
+  and pending_sms.status in ('pending', 'failed')
+  and pending_sms.purpose <> 'payment_confirmation'
+  and not exists (
+    select 1 from public.profiles AS p
+    where p.phone = pending_sms.recipient and p.whatsapp_opt_in
+  );
 
 alter table public.notification_outbox
   add constraint notification_outbox_channel_check
@@ -136,7 +157,7 @@ create or replace function lws_private.enqueue_expiry_notifications()
 returns integer
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = ''
 as $$
 declare
   added integer := 0;

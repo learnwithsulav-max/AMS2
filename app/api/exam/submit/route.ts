@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomBytes } from 'node:crypto';
 import { QUESTIONS } from '@/lib/questions';
 import { admin } from '@/lib/supabase-admin';
 import { EXAM } from '@/lib/brand';
@@ -10,9 +11,7 @@ export const dynamic = 'force-dynamic';
 const GRACE_MS = 120000; // allowance for slow connections after the timer ends
 
 function certId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const rnd = Array.from({ length: 7 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  return `LWS-CERT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${rnd}`;
+  return `LWS-CERT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${randomBytes(5).toString('hex').toUpperCase()}`;
 }
 
 export async function POST(req: Request) {
@@ -71,7 +70,9 @@ export async function POST(req: Request) {
   let issuedAt = at.submitted_at || new Date().toISOString();
 
   if (!already) {
-    cert = passed ? certId() : null;
+    // Issue a uniquely numbered exam outcome certificate for both passing and
+    // failing candidates; the visible status badge remains authoritative.
+    cert = cert || certId();
     const submitted = new Date().toISOString();
     const { data: saved, error: saveError } = await admin.from('exam_attempts').update({
       submitted_at: new Date().toISOString(), answers: given, score, max_marks: max, passed, cert_id: cert,
@@ -116,9 +117,25 @@ export async function POST(req: Request) {
     }
   }
 
+  // Backfill an official identifier when an older submitted attempt is opened
+  // again; failed legacy attempts were previously stored without one.
+  if (!cert) {
+    const candidate = certId();
+    const { data: issued, error: issueError } = await admin.from('exam_attempts')
+      .update({ cert_id: candidate }).eq('id', attemptId).eq('user_id', user.id).is('cert_id', null)
+      .select('cert_id').maybeSingle();
+    if (issueError) return NextResponse.json({ error: 'Could not issue this exam result certificate.' }, { status: 500 });
+    if (issued?.cert_id) cert = issued.cert_id;
+    else {
+      const { data: current, error: currentError } = await admin.from('exam_attempts').select('cert_id').eq('id', attemptId).eq('user_id', user.id).maybeSingle();
+      if (currentError || !current?.cert_id) return NextResponse.json({ error: 'Could not verify this exam result certificate.' }, { status: 500 });
+      cert = current.cert_id;
+    }
+  }
+
   return NextResponse.json({
     attemptId, name: at.name, score, max, correct, wrong: review.length - correct - skipped, skipped, passed, expired,
-    certId: passed ? cert : null, issuedAt, review,
+    certId: cert, issuedAt, review,
   });
 }
 

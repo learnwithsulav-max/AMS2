@@ -125,6 +125,16 @@ function Dashboard() {
               ['Premium collected', npr(POL.reduce((s, p) => s + Number(p.premium || 0), 0))], ['Weighted premium', npr(POL.reduce((s, p) => s + weighted(p), 0))],
             ].map(([k, v]) => <Card key={String(k)} className="p-4"><p className="text-sm text-slate-500">{k}</p><p className="mt-1 text-2xl font-extrabold">{v}</p></Card>)}
           </div>
+          <WorkflowBoard
+            policies={POL}
+            approvals={(d.billing_orders || []).filter((order) => order.status === 'pending' && order.product !== 'exam_pass')}
+            leads={L}
+            vouchers={(d.billing_orders || []).filter((order) => order.status === 'pending' && order.product === 'exam_pass')}
+            examPassOrders={(d.exam_pass_orders || []).filter((order) => order.status === 'pending')}
+            tasks={(d.agency_feedback || []).filter((task) => !['completed', 'closed'].includes(task.status || ''))}
+            agents={name}
+            onOpen={setTab}
+          />
           <div>
             <h2 className="mb-3 font-bold">Latest exam results</h2>
             <DataTable name="latest-exams" rows={A.slice(0, 8)} cols={examCols} />
@@ -221,6 +231,37 @@ function Dashboard() {
       ]} />}
     </div>
   );
+}
+
+function WorkflowBoard({ policies, approvals, leads, vouchers, examPassOrders, tasks, agents, onOpen }: {
+  policies: any[]; approvals: any[]; leads: any[]; vouchers: any[]; examPassOrders: any[];
+  tasks: any[]; agents: Record<string, string>; onOpen: (tab: string) => void;
+}) {
+  const dueLeads = leads.filter((lead) => lead.follow_up_date && lead.follow_up_date <= today() && !String(lead.stage || '').startsWith('Closed'));
+  const voucherCount = vouchers.length + examPassOrders.length;
+  const columns = [
+    { title: 'Active Policies / Pending Approvals', count: policies.length + approvals.length, tab: 'Billing queue', rows: [
+      ...policies.slice(0, 3).map((policy) => ({ id: `policy-${policy.id}`, title: policy.client_name || 'Policy', detail: `${agents[policy.agent_id] || 'Agent'} · ${npr(policy.premium)}` })),
+      ...approvals.slice(0, 3).map((order) => ({ id: `approval-${order.id}`, title: order.package_code || order.product, detail: `${order.metadata?.name || 'Customer'} · NPR ${Number(order.amount || 0).toLocaleString()}` })),
+    ] },
+    { title: 'Follow-up Leads', count: dueLeads.length, tab: 'Leads', rows: dueLeads.slice(0, 6).map((lead) => ({ id: `lead-${lead.id}`, title: lead.name, detail: `${agents[lead.agent_id] || 'Agent'} · ${lead.follow_up_date}` })) },
+    { title: 'Exam Vouchers Queue', count: voucherCount, tab: 'Billing queue', rows: [
+      ...vouchers.slice(0, 4).map((order) => ({ id: `voucher-${order.id}`, title: order.metadata?.name || 'Candidate', detail: `${order.package_code} · NPR ${Number(order.amount || 0).toLocaleString()}` })),
+      ...examPassOrders.slice(0, 4).map((order) => ({ id: `legacy-${order.id}`, title: order.name || 'Candidate', detail: `${order.payment_method} · NPR ${Number(order.amount || 0).toLocaleString()}` })),
+    ] },
+    { title: 'Task Progress', count: tasks.length, tab: 'Feedback inbox', rows: tasks.slice(0, 6).map((task) => ({ id: `task-${task.id}`, title: task.title || 'Agency request', detail: `${agents[task.agent_id] || 'Agent'} · ${task.status || 'new'}` })) },
+  ];
+
+  return <section aria-label="Admin workflow board" className="grid gap-3">
+    <div><h2 className="text-lg font-bold">Workflow board</h2><p className="text-sm text-slate-600">Review approvals, follow-ups and candidate vouchers from the command center.</p></div>
+    <div className="grid gap-4 xl:grid-cols-4">
+      {columns.map((column) => <Card key={column.title} className="grid content-start gap-3 bg-slate-50 p-4">
+        <button type="button" className="flex items-center justify-between text-left" onClick={() => onOpen(column.tab)}><h3 className="font-bold">{column.title}</h3><Badge tone={column.count ? 'amber' : 'slate'}>{column.count}</Badge></button>
+        {column.rows.map((row) => <button type="button" key={row.id} onClick={() => onOpen(column.tab)} className="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm hover:border-[#0A4F8A]"><b className="block truncate">{row.title}</b><span className="mt-1 block truncate text-xs text-slate-500">{row.detail}</span></button>)}
+        {!column.rows.length && <p className="text-sm text-slate-500">Nothing is waiting in this column.</p>}
+      </Card>)}
+    </div>
+  </section>;
 }
 
 function BillingQueue({orders,mutate}:{orders:any[];mutate:(payload:Record<string,unknown>)=>Promise<boolean>}) {

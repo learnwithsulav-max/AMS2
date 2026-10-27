@@ -18,7 +18,7 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host')?.split(':')[0]?.toLowerCase().replace(/\.$/, '') || '';
   const rootDomain = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '').toLowerCase();
   const isAgencyHost = host === `agency.${rootDomain}`;
-  const portfolioSlug = url.pathname.match(/^\/([a-z0-9-]+)\/?$/i)?.[1];
+  const portfolioSlug = url.pathname.match(/^\/([a-z0-9.-]+)\/?$/i)?.[1];
   const isPortfolioPath = isAgencyHost && Boolean(portfolioSlug) && !['billing', 'login', 'signup', 'api'].includes(portfolioSlug.toLowerCase());
 
   const response = url.pathname.startsWith('/sites')
@@ -38,4 +38,4 @@ export async function middleware(req: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'] };
+export const config = { matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:avif|css|csv|eot|gif|ico|jpe?g|js|json|map|pdf|png|svg|txt|webmanifest|webp|woff2?)$).*)'] };

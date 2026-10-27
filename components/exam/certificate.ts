@@ -1,3 +1,5 @@
+import QRCode from 'qrcode';
+
 // Draws the learner's details onto the supplied certificate template.
 // Coordinates are in pixels of the 1754 x 1241 template (150 dpi A4 landscape).
 const W = 1754;
@@ -10,10 +12,15 @@ function load(src: string) {
   });
 }
 
-export type CertInfo = { name: string; score: number; max: number; certId: string; date: string };
+export type CertInfo = { name: string; score: number; max: number; certId: string; date: string; passed: boolean };
 
 export async function renderCertificate(info: CertInfo) {
-  const [img, logo] = await Promise.all([load('/certificate-template.jpg'), load('/logo.png')]);
+  const [img, logo, qrData] = await Promise.all([
+    load('/certificate-template.jpg'),
+    load('/logo.png'),
+    QRCode.toDataURL('https://sulavs.com.np', { width: 320, margin: 1, errorCorrectionLevel: 'H' }),
+  ]);
+  const qr = await load(qrData);
   try { await (document as any).fonts?.ready; } catch {}
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -30,6 +37,21 @@ export async function renderCertificate(info: CertInfo) {
   g.fillStyle = NAVY;
   g.textBaseline = 'alphabetic';
 
+  // Replace the template's pass-only wording with a neutral result certificate.
+  cover(438, 344, 878, 84);
+  g.fillStyle = NAVY;
+  g.textAlign = 'center';
+  g.font = `700 ${48 * k}px Georgia, serif`;
+  g.fillText('OFFICIAL EXAM CERTIFICATE', 877 * k, 402 * k);
+  cover(540, 433, 674, 49);
+  g.font = `400 ${23 * k}px Arial, sans-serif`;
+  g.fillText('Verified candidate examination result', 877 * k, 466 * k);
+  cover(510, 550, 734, 72);
+  g.font = `400 ${21 * k}px Arial, sans-serif`;
+  g.fillText('Life Insurance Agent Practice Examination', 877 * k, 584 * k);
+  g.font = `400 ${17 * k}px Arial, sans-serif`;
+  g.fillText('Learn With Sulav · Official digital result', 877 * k, 610 * k);
+
   // Recipient name, centred on the line (shrinks to fit long names)
   let size = 50;
   const maxW = 640 * k;
@@ -38,11 +60,31 @@ export async function renderCertificate(info: CertInfo) {
   g.fillText(info.name, 877 * k, 522 * k);
 
   g.font = `700 ${19 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  // Marks, certificate number and date replace the printed blanks
-  cover(438, 694, 110, 28); g.textAlign = 'center'; g.fillText(`${info.score}/${info.max}`, 493 * k, 712 * k);
+  // Candidate metrics, unique certificate number, date, and outcome replace
+  // the template's printed blanks.
+  const percentage = info.max > 0 ? Math.round((info.score / info.max) * 100) : 0;
+  cover(438, 694, 270, 28); g.textAlign = 'center'; g.fillText(`${info.score}/${info.max}  ·  ${percentage}%`, 573 * k, 712 * k);
   g.textAlign = 'left';
-  cover(450, 743, 150, 28); g.fillText(info.certId.replace('LWS-CERT-', ''), 454 * k, 762 * k);
+  cover(450, 743, 300, 28); g.fillText(info.certId, 454 * k, 762 * k);
   cover(352, 768, 150, 26); g.fillText(info.date, 356 * k, 787 * k);
+
+  const statusColor = info.passed ? '#15803D' : '#B91C1C';
+  g.fillStyle = statusColor;
+  g.beginPath();
+  g.roundRect(1372 * k, 680 * k, 158 * k, 48 * k, 10 * k);
+  g.fill();
+  g.fillStyle = '#FFFFFF';
+  g.textAlign = 'center';
+  g.font = `700 ${25 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
+  g.fillText(info.passed ? 'PASS' : 'FAIL', 1451 * k, 712 * k);
+
+  // Replace the printed stamp with a scannable ecosystem verification QR.
+  cover(170, 888, 255, 235);
+  g.drawImage(qr, 202 * k, 895 * k, 190 * k, 190 * k);
+  g.fillStyle = NAVY;
+  g.textAlign = 'center';
+  g.font = `700 ${15 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
+  g.fillText('SCAN TO VERIFY', 297 * k, 1110 * k);
   g.fillStyle = NAVY;
   g.textAlign = 'center';
   g.font = `700 ${18 * k}px "Plus Jakarta Sans", Arial, sans-serif`;

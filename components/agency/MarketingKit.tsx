@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Btn, Card, Field } from '../ui';
-import { BRAND } from '@/lib/brand';
+import { BRAND, siteUrl } from '@/lib/brand';
 import { getTodayGreeting, adToBs } from '@/lib/nepali-date';
+import { supabase } from '@/lib/supabase';
 
-type MarketingProfile = { name?: string; phone?: string; email?: string; license_no?: string; branch?: string; avatar_url?: string };
+type MarketingProfile = { id?: string; name?: string; phone?: string; email?: string; license_no?: string; branch?: string; avatar_url?: string };
 
 function loadPhoto(src?: string) {
   return new Promise<HTMLImageElement | null>((resolve) => {
@@ -21,6 +22,7 @@ function loadPhoto(src?: string) {
 
 export function MarketingKit({ profile, url }: { profile: MarketingProfile; url: string }) {
   const [qr, setQr] = useState('');
+  const [profileUrl, setProfileUrl] = useState(url);
   const [quote, setQuote] = useState({ product: 'Life insurance plan', sumAssured: '1000000', premium: '50000' });
   const [commission, setCommission] = useState({ premium: '50000', rate: '20' });
   const [notice, setNotice] = useState('');
@@ -31,10 +33,19 @@ export function MarketingKit({ profile, url }: { profile: MarketingProfile; url:
   const [customGreetingMsg, setCustomGreetingMsg] = useState(todayGreeting.message);
 
   useEffect(() => {
-    QRCode.toDataURL(url, { width: 280, margin: 2, errorCorrectionLevel: 'M' })
+    let active = true;
+    if (!profile.id) { setProfileUrl(url); return () => { active = false; }; }
+    supabase.from('public_profiles').select('slug').eq('user_id', profile.id).maybeSingle().then(({ data }) => {
+      if (active) setProfileUrl(data?.slug ? `${siteUrl('agency')}/${data.slug}` : url);
+    });
+    return () => { active = false; };
+  }, [profile.id, url]);
+
+  useEffect(() => {
+    QRCode.toDataURL(profileUrl, { width: 280, margin: 2, errorCorrectionLevel: 'M' })
       .then(setQr)
       .catch(() => setQr(''));
-  }, [url]);
+  }, [profileUrl]);
 
   function downloadVCard() {
     const lines = [
@@ -45,7 +56,7 @@ export function MarketingKit({ profile, url }: { profile: MarketingProfile; url:
       `TITLE:Certified Financial Advisor & Insurance Mentor`,
       `TEL;TYPE=CELL:${profile.phone || ''}`,
       `EMAIL:${profile.email || ''}`,
-      `URL:${url}`,
+      `URL:${profileUrl}`,
       `LOGO;VALUE=URI:https://sulavs.com.np/logo.png`,
       ...(profile.avatar_url ? [`PHOTO;VALUE=URI:${profile.avatar_url}`] : []),
       `NOTE:${BRAND.trustBadge}${profile.license_no ? ` · License ${profile.license_no}` : ''}${profile.branch ? ` · Branch ${profile.branch}` : ''}`,
@@ -148,21 +159,21 @@ export function MarketingKit({ profile, url }: { profile: MarketingProfile; url:
 
   async function copyNfc() {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(profileUrl);
       setNotice('NFC Profile URL copied to clipboard! You can now write this URL to an NFC card/tag.');
     } catch {
-      setNotice(url);
+      setNotice(profileUrl);
     }
   }
 
   function shareQuote() {
-    const text = `*Learn With Sulav · Life Insurance Quotation*\n\nAdvisor: ${profile.name || 'Your Financial Advisor'}\nPlan: ${quote.product}\nSum Assured: NPR ${Number(quote.sumAssured || 0).toLocaleString()}\nEstimated Annual Premium: NPR ${Number(quote.premium || 0).toLocaleString()}\n\nVerified Public Profile: ${url}\n\n_Note: Please confirm final underwriting terms with the insurance company._`;
+    const text = `*Learn With Sulav · Life Insurance Quotation*\n\nAdvisor: ${profile.name || 'Your Financial Advisor'}\nPlan: ${quote.product}\nSum Assured: NPR ${Number(quote.sumAssured || 0).toLocaleString()}\nEstimated Annual Premium: NPR ${Number(quote.premium || 0).toLocaleString()}\n\nVerified Public Profile: ${profileUrl}\n\n_Note: Please confirm final underwriting terms with the insurance company._`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   }
 
   function shareCommission() {
     const value = (Number(commission.premium || 0) * Number(commission.rate || 0)) / 100;
-    const text = `*Learn With Sulav · Commission Projection*\n\nAdvisor: ${profile.name || 'Learn With Sulav Advisor'}\nPremium: NPR ${Number(commission.premium || 0).toLocaleString()}\nRate: ${Number(commission.rate || 0)}%\nGross Estimate: NPR ${value.toLocaleString()}\n\nOfficial Portal: ${url}`;
+    const text = `*Learn With Sulav · Commission Projection*\n\nAdvisor: ${profile.name || 'Learn With Sulav Advisor'}\nPremium: NPR ${Number(commission.premium || 0).toLocaleString()}\nRate: ${Number(commission.rate || 0)}%\nGross Estimate: NPR ${value.toLocaleString()}\n\nOfficial Portal: ${profileUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   }
 

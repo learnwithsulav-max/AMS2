@@ -259,8 +259,7 @@ function Result({ r, t, accessToken, onRetake }: { r: any; t: (k: string) => str
   const [reported, setReported] = useState<number[]>([]);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
-    if (!r.passed) return;
-    renderCertificate({ name: r.name, score: r.score, max: r.max, certId: r.certId, date: new Date(r.issuedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) })
+    renderCertificate({ name: r.name, score: r.score, max: r.max, certId: r.certId, passed: r.passed, date: new Date(r.issuedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) })
       .then((c) => { canvas.current = c; setUrl(c.toDataURL('image/jpeg', 0.85)); });
   }, [r]);
   const file = `LearnWithSulav-Certificate-${r.name.replace(/\s+/g, '-')}`;
@@ -271,7 +270,7 @@ function Result({ r, t, accessToken, onRetake }: { r: any; t: (k: string) => str
         <h1 className={cx('text-3xl font-extrabold', r.passed ? 'text-emerald-800' : 'text-red-700')}>{r.passed ? t('pass') : t('fail')}</h1>
         <p className="mt-1 text-slate-700">{r.name}</p>
         <p className="mt-3 text-5xl font-extrabold">{r.score}<span className="text-2xl text-slate-500"> / {r.max}</span></p>
-        <p className="text-sm text-slate-600">{t('marks')}</p>
+        <p className="text-sm text-slate-600">{t('marks')} · {r.max ? Math.round((r.score / r.max) * 100) : 0}%</p>
         <div className="mt-4 flex justify-center gap-6 text-sm">
           <span>{t('correct')}: <b>{r.correct}</b></span><span>{t('wrong')}: <b>{r.wrong}</b></span><span>{t('skipped')}: <b>{r.skipped}</b></span>
         </div>
@@ -280,22 +279,15 @@ function Result({ r, t, accessToken, onRetake }: { r: any; t: (k: string) => str
 
       <Card className="mt-6 p-6">
         <h2 className="text-lg font-bold">{t('cert_title')}</h2>
-        {r.passed ? (
-          <>
+        <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {url ? <img src={url} alt="Certificate preview" className="mt-4 w-full rounded-lg border border-slate-200" /> : <p className="mt-4 text-slate-500">...</p>}
             <div className="mt-4 flex flex-wrap gap-3">
               <Btn disabled={!url} onClick={() => canvas.current && downloadPng(canvas.current, file)}>{t('cert_png')}</Btn>
               <Btn variant="ghost" disabled={!url} onClick={() => canvas.current && downloadPdf(canvas.current, file)}>{t('cert_pdf')}</Btn>
-              <LinkBtn variant="gold" href={BRAND.links.pass} target="_blank" rel="noopener noreferrer">{t('link_pass')}</LinkBtn>
+              <LinkBtn variant="gold" href={r.passed ? BRAND.links.pass : BRAND.links.fail} target="_blank" rel="noopener noreferrer">{r.passed ? t('link_pass') : t('link_fail')}</LinkBtn>
             </div>
           </>
-        ) : (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p className="text-slate-600">{t('cert_locked')}</p>
-            <LinkBtn variant="gold" href={BRAND.links.fail} target="_blank" rel="noopener noreferrer">{t('link_fail')}</LinkBtn>
-          </div>
-        )}
       </Card>
 
       <div className="mt-6 flex justify-between">

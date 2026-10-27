@@ -19,8 +19,10 @@ import { NepaliCalendarWidget } from '@/components/agency/NepaliCalendarWidget';
 import { MarketingKit } from '@/components/agency/MarketingKit';
 import { calculateAgentTitle } from '@/lib/rules';
 import { siteUrl } from '@/lib/brand';
+import { AgentDashboard } from '@/components/agency/AgentDashboard';
 
 const TABS = [
+  { k: 'overview', l: 'Dashboard' },
   { k: 'leads', l: 'Leads' },
   { k: 'plans', l: 'Plans & Policies' },
   { k: 'tdi', l: 'TDI & BDI Calculator', premium: true },
@@ -36,7 +38,7 @@ const TABS = [
 
 export default function Agency() {
   const { session, profile, loading, signOut, reload } = useAuth();
-  const [tab, setTab] = useState('leads');
+  const [tab, setTab] = useState('overview');
   const [subscription, setSubscription] = useState<any>(null);
   const [policiesCount, setPoliciesCount] = useState(0);
   const [policiesPremium, setPoliciesPremium] = useState(0);
@@ -164,6 +166,8 @@ export default function Agency() {
                 {current.l} is part of premium membership. Message Sulav on WhatsApp to activate your account.
               </p>
             </Card>
+          ) : tab === 'overview' ? (
+            <AgentDashboard profile={profile} subscription={subscription} onNavigate={setTab} />
           ) : tab === 'leads' ? (
             <Kanban uid={profile.id} />
           ) : tab === 'plans' ? (
