@@ -15,10 +15,18 @@ export async function middleware(req: NextRequest) {
   const cookieSite = req.cookies.get('lsw_site')?.value;
   const site = resolveSite(req.headers.get('host'), requestedSite || cookieSite);
 
+  const host = req.headers.get('host')?.split(':')[0]?.toLowerCase().replace(/\.$/, '') || '';
+  const rootDomain = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '').toLowerCase();
+  const isAgencyHost = host === `agency.${rootDomain}`;
+  const portfolioSlug = url.pathname.match(/^\/([a-z0-9-]+)\/?$/i)?.[1];
+  const isPortfolioPath = isAgencyHost && Boolean(portfolioSlug) && !['billing', 'login', 'signup', 'api'].includes(portfolioSlug.toLowerCase());
+
   const response = url.pathname.startsWith('/sites')
     ? NextResponse.redirect(new URL('/', req.url))
     : (() => {
-      url.pathname = `/sites/${site}${url.pathname === '/' ? '' : url.pathname}`;
+      url.pathname = isPortfolioPath
+        ? `/sites/root/agents/${portfolioSlug}`
+        : `/sites/${site}${url.pathname === '/' ? '' : url.pathname}`;
       return NextResponse.rewrite(url, { request: req });
     })();
 
