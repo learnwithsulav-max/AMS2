@@ -31,16 +31,23 @@ export function PassPurchase({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [orderError, setOrderError] = useState('');
+  const [orderChecking, setOrderChecking] = useState(false);
   const paymentForm = useRef<HTMLFormElement>(null);
 
   const sync = useCallback(
     async (c: Claim) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      setOrderChecking(true);
       try {
         const r = await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}`, {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
         });
         const j = await r.json();
+        const savedClaim = JSON.parse(sessionStorage.getItem(CLAIM_KEY) || 'null');
+        if (savedClaim?.orderId !== c.orderId) return;
         if (r.status === 404) {
           sessionStorage.removeItem(CLAIM_KEY);
           setClaim(null);
@@ -57,6 +64,9 @@ export function PassPurchase({
         setOrderError('');
       } catch {
         setOrderError('Could not check the saved payment request. Try refreshing its status.');
+      } finally {
+        clearTimeout(timeout);
+        setOrderChecking(false);
       }
     },
     [accessToken]
@@ -228,6 +238,13 @@ export function PassPurchase({
       setOrder(null);
       setOrderError('');
       setMessage('The previous payment status could not be confirmed. Its request remains on record; do not pay twice if you already submitted or paid it.');
+    } else if (claim && !order && !orderChecking) {
+      sessionStorage.removeItem(CLAIM_KEY);
+      setClaim(null);
+      setOrderError('');
+      setMessage('The previous payment status could not be confirmed. Its request remains on record; do not pay twice if you already submitted or paid it.');
+    } else if (claim && !order && orderChecking) {
+      setMessage('Checking your existing payment request first. Choose a package again when the status check finishes.');
     }
     requestAnimationFrame(() => paymentForm.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
@@ -267,7 +284,7 @@ export function PassPurchase({
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex items-center justify-between">
               <span>
-                Status: <b className="capitalize text-[#0A4F8A]">{order?.status || 'Checking...'}</b>
+                Status: <b className="capitalize text-[#0A4F8A]">{order?.status || (orderChecking ? 'Checking...' : 'Unavailable')}</b>
               </span>
               {order?.expiresAt && (
                 <span className="text-xs text-slate-500">
