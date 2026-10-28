@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Btn, Field } from '../ui';
 import { jsPDF } from 'jspdf';
@@ -30,15 +30,34 @@ export function PassPurchase({
   const [quote, setQuote] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [orderError, setOrderError] = useState('');
+  const paymentForm = useRef<HTMLFormElement>(null);
 
   const sync = useCallback(
     async (c: Claim) => {
-      const r = await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}`, {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const j = await r.json();
-      if (r.ok) setOrder(j.order);
+      try {
+        const r = await fetch(`/api/billing/orders?id=${encodeURIComponent(c.orderId)}`, {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const j = await r.json();
+        if (r.status === 404) {
+          sessionStorage.removeItem(CLAIM_KEY);
+          setClaim(null);
+          setOrder(null);
+          setOrderError('');
+          setMessage('The saved payment request was not found. You can choose a package and submit a new voucher. Check that no previous payment is still awaiting review before paying again.');
+          return;
+        }
+        if (!r.ok) {
+          setOrderError(j.error || 'Could not check the saved payment request. Try refreshing its status.');
+          return;
+        }
+        setOrder(j.order);
+        setOrderError('');
+      } catch {
+        setOrderError('Could not check the saved payment request. Try refreshing its status.');
+      }
     },
     [accessToken]
   );
@@ -90,6 +109,7 @@ export function PassPurchase({
     sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next));
     setClaim(next);
     setOrder(j.order);
+    setOrderError('');
     setMessage('Payment voucher submitted. Refreshing exam pass status...');
     setTimeout(() => {
       router.replace('/');
@@ -197,6 +217,20 @@ export function PassPurchase({
   }
 
   const selected = PAYMENTS.find((p) => p.code === form.packageCode)!;
+  const canSubmitNewVoucher = !claim || order?.status === 'rejected';
+
+  function selectPackage(packageCode: string) {
+    setForm((current) => ({ ...current, packageCode }));
+    setQuote(null);
+    if (claim && orderError) {
+      sessionStorage.removeItem(CLAIM_KEY);
+      setClaim(null);
+      setOrder(null);
+      setOrderError('');
+      setMessage('The previous payment status could not be confirmed. Its request remains on record; do not pay twice if you already submitted or paid it.');
+    }
+    requestAnimationFrame(() => paymentForm.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
 
   return (
     <section className="grid gap-4 md:col-span-2" aria-label="Exam practice pass packages">
@@ -205,10 +239,7 @@ export function PassPurchase({
           <button
             type="button"
             key={p.code}
-            onClick={() => {
-              setForm({ ...form, packageCode: p.code });
-              setQuote(null);
-            }}
+            onClick={() => selectPackage(p.code)}
             className={`relative rounded-2xl border-2 bg-white p-4 text-left shadow-sm transition ${
               form.packageCode === p.code ? 'border-[#F15A24] ring-1 ring-[#F15A24]' : 'border-slate-200 hover:border-slate-300'
             }`}
@@ -276,8 +307,20 @@ export function PassPurchase({
           </div>
         )}
 
-        {!claim && (
-          <form onSubmit={submit} className="mt-4 grid gap-3">
+        {orderError && (
+          <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>
+        )}
+
+        {!canSubmitNewVoucher && order?.status === 'pending' && (
+          <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Your voucher is awaiting review. The payment form stays paused until this request is approved or rejected, to help prevent duplicate payments.</p>
+        )}
+
+        {!canSubmitNewVoucher && order?.status === 'paid' && (
+          <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">This payment is verified. No further payment is needed for this request.</p>
+        )}
+
+        {canSubmitNewVoucher && (
+          <form ref={paymentForm} onSubmit={submit} className="mt-4 grid scroll-mt-6 gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="rounded-lg border p-3 text-center text-sm cursor-pointer hover:border-slate-400">
                 <input
