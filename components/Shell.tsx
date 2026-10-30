@@ -22,11 +22,12 @@ const NAV: [SiteKey, string][] = [
 export function Shell({ site, right, children }: { site: SiteKey; right?: ReactNode; children: ReactNode }) {
   const { t } = useI18n();
   const [showNotification, setShowNotification] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bsDate, setBsDate] = useState<any>(null);
   const [greeting, setGreeting] = useState<any>(null);
 
   useEffect(() => {
-    document.title = site === 'root' ? BRAND.name : `${TITLES[site]} | ${BRAND.name}`;
+    if (site !== 'root') document.title = `${TITLES[site]} | ${BRAND.name}`;
     setBsDate(adToBs(new Date()));
     setGreeting(getTodayGreeting(new Date()));
   }, [site]);
@@ -70,7 +71,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
           <button
             type="button"
             onClick={() => setShowNotification(false)}
-            className="text-white/70 hover:text-white text-base leading-none px-1"
+            className="rounded px-2 py-1 text-base leading-none text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             title="Dismiss notification"
             aria-label="Dismiss announcement"
           >
@@ -101,15 +102,37 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
           </nav>
           <div className="flex items-center gap-3">
             <LangToggle />
+            <button
+              type="button"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-navy hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy md:hidden"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-portal-navigation"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              <span aria-hidden="true" className="text-xl leading-none">{mobileMenuOpen ? '×' : '☰'}</span>
+            </button>
             {right}
           </div>
         </div>
+        {mobileMenuOpen && <nav id="mobile-portal-navigation" className="border-t border-slate-200 px-4 py-2 md:hidden" aria-label="Mobile portals">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+            {NAV.map(([k, l]) => <a key={k} href={siteUrl(k)} suppressHydrationWarning onClick={() => setMobileMenuOpen(false)} className={cx('rounded-md px-3 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy', site === k ? 'bg-blue-50 text-navy' : 'text-slate-700 hover:bg-slate-50')}>
+              {t(l)}
+            </a>)}
+          </div>
+        </nav>}
       </header>
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t border-slate-200 bg-white px-4 py-5 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white px-4 py-5 text-center text-xs text-slate-600">
         <p>{BRAND.trustBadge}</p>
+        {site === 'root' && <nav aria-label="Legal and contact" className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2">
+          <a className="underline underline-offset-2 hover:text-navy focus-visible:outline-2" href="/privacy">Privacy</a>
+          <a className="underline underline-offset-2 hover:text-navy focus-visible:outline-2" href="/terms">Terms</a>
+          <a className="underline underline-offset-2 hover:text-navy focus-visible:outline-2" href="/#contact">Contact</a>
+        </nav>}
         <p className="mt-1">
           © {new Date().getFullYear()} {BRAND.name}.{' '}
           <a className="underline" href={siteUrl('admin')} suppressHydrationWarning>

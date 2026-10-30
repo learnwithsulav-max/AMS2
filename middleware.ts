@@ -39,4 +39,4 @@ export async function middleware(req: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:avif|css|csv|eot|gif|ico|jpe?g|js|json|map|pdf|png|svg|txt|webmanifest|webp|woff2?)$).*)'] };
+export const config = { matcher: ['/((?!api|_next/static|_next/image|favicon.ico|sitemap\\.xml$|.*\\.(?:avif|css|csv|eot|gif|ico|jpe?g|js|json|map|pdf|png|svg|txt|webmanifest|webp|woff2?)$).*)'] };

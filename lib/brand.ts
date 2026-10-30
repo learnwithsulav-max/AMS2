@@ -16,7 +16,7 @@ export const BRAND = {
 export const EXAM = {
   total: 50, // questions drawn at random from the bank
   perPage: 5, // 10 pages x 5 questions
-  minutes: 60,
+  minutes: 90,
   pointsPerQuestion: 2, // 50 x 2 = 100 marks
   passPercent: 50, // pass mark as % of total marks (set to your real rule)
 };

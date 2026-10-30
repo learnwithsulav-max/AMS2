@@ -87,7 +87,7 @@ const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: strin
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setL] = useState<Lang>('en');
   useEffect(() => {
-    try { const s = localStorage.getItem('lsw_lang'); if (s === 'en' || s === 'ne') setL(s); } catch {}
+    try { const s = localStorage.getItem('lsw_lang'); if (s === 'en' || s === 'ne') { setL(s); document.documentElement.lang = s; } } catch {}
   }, []);
   const setLang = (l: Lang) => {
     setL(l);
