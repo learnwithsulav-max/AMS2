@@ -52,13 +52,13 @@ export function QuestionImporter() {
       const keys = headers.map(aliases);
       const parsed = rows.map((cells) => Object.fromEntries(keys.map((key, index) => [key, cells[index] || ''])));
       const result = await adminPost<{ imported: number; skipped: number }>('/api/admin/questions', { questions: parsed });
-      setMessage(`Imported ${result.imported} questions. Skipped ${result.skipped} incomplete or duplicate rows.`);
+      setMessage(`Imported ${result.imported} questions. Skipped ${result.skipped} incomplete, duplicate or unverified active rows.`);
       await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Question import failed.'); }
     finally { setBusy(false); }
   }
   return <Card className="grid gap-4 p-5">
-    <div><h2 className="font-bold">Bulk question import</h2><p className="mt-1 text-sm text-slate-600">CSV or XLSX needs Category, Question, Option A, Option B, Option C, Option D and Correct. Optional columns: Difficulty (easy/medium/hard), Question NE, Option A NE–Option D NE, Explanation and Explanation NE. Keep your vetted source file.</p></div>
+    <div><h2 className="font-bold">Bulk question import</h2><p className="mt-1 text-sm text-slate-600">CSV/XLSX columns: Category, Question, Option A–D, Correct. Include bilingual text/options, difficulty, explanations and Active=true to request activation. Active items need source links in both admin-only explanations, similar option lengths in both languages, and multi-sentence scenarios for case topics.</p></div>
     <input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy} onChange={(e) => { void importFile(e.target.files?.[0]); e.currentTarget.value = ''; }} />
     {busy && <p role="status" className="text-sm text-slate-600">Validating and importing…</p>}
     {message && <p role="status" className="text-sm text-slate-700">{message}</p>}

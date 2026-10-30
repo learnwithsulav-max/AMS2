@@ -6,6 +6,11 @@ export const dynamic = 'force-dynamic';
 const categories = new Set(['nia','reinsurance','life','nonlife','microinsurance','aml_cft','agent_conduct','life_cases','nonlife_cases','micro_cases']);
 const clean = (x: unknown, max = 1200) => typeof x === 'string' ? x.trim().slice(0, max) : '';
 const norm = (x: string) => x.normalize('NFC').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+const optionLength = (x: string) => Array.from(x.replace(/[^\p{L}\p{N}]/gu, '')).length;
+const optionsAreBalanced = (values: string[]) => {
+  const lengths = values.map(optionLength).sort((a, b) => a - b);
+  return lengths[0] > 0 && lengths[3] - lengths[0] <= Math.max(8, Math.round(lengths[2] * 0.4));
+};
 
 export async function GET(request: Request) {
   const { response } = await requireAdmin(request);
@@ -46,9 +51,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, id });
   }
   if (!Array.isArray(body?.questions) || body.questions.length > 10000) return NextResponse.json({ error: 'Import at most 10,000 question rows at a time.' }, { status: 400 });
-  const { data: existing, error: readError } = await admin.from('question_bank').select('question_en,question_ne');
+  const { data: existing, error: readError } = await admin.from('question_bank').select('question_en,question_ne,active');
   if (readError) return NextResponse.json({ error: 'Question bank is unavailable. Apply the blueprint migration first.' }, { status: 503 });
-  const seen = new Set((existing || []).flatMap((q) => [q.question_en, q.question_ne].filter(Boolean).map(norm)));
+  const seen = new Set((existing || []).filter((q) => q.active).flatMap((q) => [q.question_en, q.question_ne].filter(Boolean).map(norm)));
   const records: Record<string, unknown>[] = []; let skipped = 0;
   for (const raw of body.questions as Record<string, unknown>[]) {
     const categoryRaw = clean(raw.category, 60).toLowerCase();
@@ -58,7 +63,15 @@ export async function POST(request: Request) {
     const options = ['a','b','c','d'].map((key) => clean(raw[`option_${key}`] || raw[`option_${key}_en`], 500));
     const optionsNe = ['a','b','c','d'].map((key) => clean(raw[`option_${key}_ne`], 500));
     const answer = clean(raw.correct || raw.ans || raw.correct_option, 1).toUpperCase();
+    const requestedActive = raw.active === true || raw.active === 'true';
     if ((!en && !ne) || options.some((v) => !v) || !/^[ABCD]$/.test(answer)) { skipped++; continue; }
+    const isCase = ['life_cases','nonlife_cases','micro_cases'].includes(category);
+    const isMultiSentence = (value: string) => (value.match(/[.!?।](?:\s|$)/g) || []).length >= 2;
+    if (requestedActive && (!en || !ne || optionsNe.some((v) => !v)
+      || !optionsAreBalanced(options) || !optionsAreBalanced(optionsNe)
+      || !/https?:\/\//i.test(clean(raw.explanation || raw.explanation_en, 2000))
+      || !/https?:\/\//i.test(clean(raw.explanation_ne, 2000))
+      || (isCase && (!isMultiSentence(en) || !isMultiSentence(ne))))) { skipped++; continue; }
     const identity = norm(en || ne);
     if (seen.has(identity)) { skipped++; continue; }
     seen.add(identity);
@@ -66,7 +79,8 @@ export async function POST(request: Request) {
     records.push({ category, language: en && ne ? 'mixed' : en ? 'en' : 'ne', difficulty: ['easy','medium','hard'].includes(difficulty) ? difficulty : 'medium', question_en: en || null, question_ne: ne || null,
       option_a_en: options[0], option_b_en: options[1], option_c_en: options[2], option_d_en: options[3],
       option_a_ne: optionsNe[0] || null, option_b_ne: optionsNe[1] || null, option_c_ne: optionsNe[2] || null, option_d_ne: optionsNe[3] || null,
-      correct_option: answer, explanation_en: clean(raw.explanation, 2000) || null, explanation_ne: clean(raw.explanation_ne, 2000) || null });
+      correct_option: answer, explanation_en: clean(raw.explanation || raw.explanation_en, 2000) || null, explanation_ne: clean(raw.explanation_ne, 2000) || null,
+      active: requestedActive });
   }
   for (let i = 0; i < records.length; i += 500) {
     const { error } = await admin.from('question_bank').insert(records.slice(i, i + 500));
