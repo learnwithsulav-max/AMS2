@@ -26,106 +26,61 @@ export async function renderCertificate(info: CertInfo) {
   const qr = await load(qrData);
   try { await (document as any).fonts?.ready; } catch {}
   const c = document.createElement('canvas');
-  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.width = W; c.height = 1241;
   const g = c.getContext('2d')!;
   const k = c.width / W;
-  g.drawImage(img, 0, 0);
+  // New, independent Learn With Sulav design. Do not reuse the old template's
+  // NIA-style seal or official-licensing claims.
+  g.fillStyle = BOX_BG; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.roundRect(34 * k, 34 * k, 1686 * k, 1173 * k, 24 * k); g.fill();
+  g.strokeStyle = NAVY; g.lineWidth = 8 * k; g.strokeRect(44 * k, 44 * k, 1666 * k, 1153 * k);
+  g.strokeStyle = '#D4B64C'; g.lineWidth = 2 * k; g.strokeRect(58 * k, 58 * k, 1638 * k, 1125 * k);
 
-  g.save();
-  g.globalAlpha = 0.14;
-  g.drawImage(logo, 657 * k, 548 * k, 440 * k, 440 * k);
-  g.restore();
+  g.save(); g.globalAlpha = 0.075; g.drawImage(logo, 657 * k, 475 * k, 440 * k, 440 * k); g.restore();
+  g.drawImage(logo, 784 * k, 75 * k, 186 * k, 148 * k);
+  g.fillStyle = NAVY; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = `700 ${25 * k}px Arial, sans-serif`; g.fillText('LEARN WITH SULAV', 877 * k, 251 * k);
+  g.fillStyle = ORANGE; g.font = `400 ${17 * k}px Arial, sans-serif`; g.fillText('INDEPENDENT INSURANCE PRACTICE', 877 * k, 278 * k);
+  g.strokeStyle = '#D4B64C'; g.lineWidth = 3 * k; g.beginPath(); g.moveTo(412 * k, 300 * k); g.lineTo(1342 * k, 300 * k); g.stroke();
 
-  const cover = (x: number, y: number, w: number, h: number, color = BOX_BG) => { g.fillStyle = color; g.fillRect(x * k, y * k, w * k, h * k); };
-  g.fillStyle = NAVY;
-  g.textBaseline = 'alphabetic';
+  g.fillStyle = NAVY; g.font = `700 ${43 * k}px Georgia, serif`; g.fillText('PRACTICE EXAM RESULT CERTIFICATE', 877 * k, 365 * k);
+  g.fillStyle = '#526273'; g.font = `400 ${19 * k}px Arial, sans-serif`; g.fillText('Presented to', 877 * k, 414 * k);
+  let size = 51;
+  do { g.font = `700 ${size * k}px Georgia, "Noto Sans Devanagari", serif`; size -= 2; } while (g.measureText(info.name).width > 1050 * k && size > 22);
+  g.fillStyle = ORANGE; g.fillText(info.name, 877 * k, 485 * k);
+  g.strokeStyle = ORANGE; g.lineWidth = 2 * k; g.beginPath(); g.moveTo(490 * k, 506 * k); g.lineTo(1264 * k, 506 * k); g.stroke();
+  g.fillStyle = '#526273'; g.font = `400 ${18 * k}px Arial, sans-serif`; g.fillText('for completing a Learn With Sulav mixed insurance practice assessment', 877 * k, 543 * k);
 
-  // Replace the template's pass-only wording with a neutral result certificate.
-  cover(438, 344, 878, 84);
-  g.fillStyle = NAVY;
-  g.textAlign = 'center';
-  g.font = `700 ${48 * k}px Georgia, serif`;
-  g.fillText('OFFICIAL EXAM CERTIFICATE', 877 * k, 402 * k);
-  cover(540, 433, 674, 49);
-  g.font = `400 ${23 * k}px Arial, sans-serif`;
-  g.fillText('Verified candidate examination result', 877 * k, 466 * k);
-  cover(510, 550, 734, 72);
-  g.font = `400 ${21 * k}px Arial, sans-serif`;
-  g.fillText('Life Insurance Agent Practice Examination', 877 * k, 584 * k);
-  g.font = `400 ${17 * k}px Arial, sans-serif`;
-  g.fillText('Learn With Sulav · Official digital result', 877 * k, 610 * k);
-
-  // Recipient name, centred on the line (shrinks to fit long names)
-  let size = 50;
-  const maxW = 640 * k;
-  do { g.font = `700 ${size * k}px Georgia, "Noto Sans Devanagari", serif`; size -= 2; } while (g.measureText(info.name).width > maxW && size > 20);
-  g.textAlign = 'center';
-  g.fillStyle = ORANGE;
-  g.fillText(info.name, 877 * k, 522 * k);
-
-  // Candidate metrics, unique certificate number, date, and outcome replace
-  // the template's printed blanks.
   const percentage = info.max > 0 ? Math.round((info.score / info.max) * 100) : 0;
-  // Clear the printed detail rows while retaining the template's blue frame.
-  cover(194, 652, 1165, 140, DETAILS_BG);
-  g.textAlign = 'left';
-  g.font = `700 ${17 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  g.fillStyle = NAVY;
-  g.fillText('Examination Details:', 220 * k, 678 * k);
-  const rowFont = `400 ${17 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  const drawRow = (label: string, value: string, x: number, y: number, valueColor = ORANGE) => {
-    g.textAlign = 'left';
-    g.font = `700 ${17 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-    g.fillStyle = NAVY;
-    g.fillText(label, x * k, y * k);
-    const labelWidth = g.measureText(label).width;
-    g.font = rowFont;
-    g.fillStyle = valueColor;
-    g.fillText(value, x * k + labelWidth + 5 * k, y * k);
+  g.fillStyle = DETAILS_BG; g.beginPath(); g.roundRect(190 * k, 590 * k, 1374 * k, 185 * k, 18 * k); g.fill();
+  g.strokeStyle = NAVY; g.lineWidth = 2 * k; g.stroke();
+  const stat = (x: number, label: string, value: string, width: number) => {
+    g.textAlign = 'center'; g.fillStyle = NAVY; g.font = `700 ${16 * k}px Arial, sans-serif`; g.fillText(label, x * k, 638 * k);
+    g.fillStyle = ORANGE; g.font = `700 ${25 * k}px Arial, sans-serif`;
+    let fontSize = 25; while (g.measureText(value).width > width * k && fontSize > 15) { fontSize--; g.font = `700 ${fontSize * k}px Arial, sans-serif`; }
+    g.fillText(value, x * k, 683 * k);
   };
-  drawRow('Passing Score Achieved: ', `${info.score}/${info.max}  ·  ${percentage}%`, 220, 709);
-  drawRow('Syllabus Covered: ', 'Nepal Insurance Authority (NIA) Licensing Guidelines, Insurance Act 2079, Underwriting & Claim Procedures', 220, 733, NAVY);
-  drawRow('Certificate ID: ', info.certId, 220, 757);
-  drawRow('Date of Issue: ', info.date, 220, 781);
+  stat(425, 'SCORE', `${info.score} / ${info.max}  ·  ${percentage}%`, 330);
+  stat(877, 'CERTIFICATE ID', info.certId, 440);
+  stat(1329, 'DATE ISSUED', info.date, 330);
+  g.fillStyle = ORANGE; g.beginPath(); g.roundRect(758 * k, 714 * k, 238 * k, 48 * k, 12 * k); g.fill();
+  g.fillStyle = '#FFFFFF'; g.font = `700 ${24 * k}px Arial, sans-serif`; g.textAlign = 'center'; g.fillText(info.passed ? 'PASS' : 'FAIL', 877 * k, 746 * k);
 
-  g.fillStyle = ORANGE;
-  g.beginPath();
-  g.roundRect(1372 * k, 680 * k, 158 * k, 48 * k, 10 * k);
-  g.fill();
-  g.fillStyle = '#FFFFFF';
-  g.textAlign = 'center';
-  g.font = `700 ${25 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  g.fillText(info.passed ? 'PASS' : 'FAIL', 1451 * k, 712 * k);
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.roundRect(150 * k, 826 * k, 282 * k, 282 * k, 16 * k); g.fill();
+  g.strokeStyle = '#D9E2EC'; g.lineWidth = 2 * k; g.stroke();
+  g.drawImage(qr, 178 * k, 847 * k, 226 * k, 226 * k);
+  g.fillStyle = NAVY; g.font = `700 ${14 * k}px Arial, sans-serif`; g.fillText('SCAN TO VISIT SULAVS.COM.NP', 291 * k, 1091 * k);
 
-  // Replace the printed stamp with a scannable ecosystem verification QR.
-  cover(170, 888, 255, 235);
-  g.drawImage(qr, 202 * k, 895 * k, 190 * k, 190 * k);
-  g.fillStyle = NAVY;
-  g.textAlign = 'center';
-  g.font = `700 ${15 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  g.fillText('SCAN TO VERIFY', 297 * k, 1110 * k);
-  // Center the certificate number in the available gap between QR and
-  // signature. Clear only the original legal line; preserve the template frame.
-  cover(530, 1120, 694, 30, TEMPLATE_BG);
-  cover(530, 1152, 694, 30, TEMPLATE_BG);
-  g.textAlign = 'center';
-  g.font = `700 ${16 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  const footerLabel = 'Certificate Code: ';
-  const footerValue = info.certId;
-  const labelWidth = g.measureText(footerLabel).width;
-  const valueWidth = g.measureText(footerValue).width;
-  const footerStart = (c.width - labelWidth - valueWidth) / 2;
-  g.fillStyle = NAVY;
-  g.textAlign = 'left';
-  g.fillText(footerLabel, footerStart, 1142 * k);
-  g.fillStyle = ORANGE;
-  g.fillText(footerValue, footerStart + labelWidth, 1142 * k);
-  // Repaint the legal registration notice above the bottom frame with clear
-  // spacing from the certificate code, QR, and signature blocks.
-  g.fillStyle = NAVY;
-  g.textAlign = 'center';
-  g.font = `400 ${10 * k}px "Plus Jakarta Sans", Arial, sans-serif`;
-  g.fillText('This certificate is issued digitally by LearnWithSulav. Verify authority at learnwithsulav.com.np | For educational purposes only.', c.width / 2, 1165 * k);
+  // The signature is Sulav Sapkota's brand signature, never an NIA seal.
+  g.drawImage(img, 1288 * k, 925 * k, 330 * k, 100 * k, 1288 * k, 925 * k, 330 * k, 100 * k);
+  g.strokeStyle = NAVY; g.lineWidth = 2 * k; g.beginPath(); g.moveTo(1270 * k, 1046 * k); g.lineTo(1590 * k, 1046 * k); g.stroke();
+  g.fillStyle = NAVY; g.font = `700 ${18 * k}px Arial, sans-serif`; g.fillText('Sulav Sapkota', 1430 * k, 1075 * k);
+  g.fillStyle = '#526273'; g.font = `400 ${14 * k}px Arial, sans-serif`; g.fillText('Founder · Learn With Sulav', 1430 * k, 1098 * k);
+
+  g.strokeStyle = '#D9E2EC'; g.lineWidth = 1 * k; g.beginPath(); g.moveTo(510 * k, 1135 * k); g.lineTo(1244 * k, 1135 * k); g.stroke();
+  g.fillStyle = '#526273'; g.font = `400 ${12 * k}px Arial, sans-serif`;
+  g.fillText('This is a practice result issued by Learn With Sulav, an independent educational platform.', 877 * k, 1157 * k);
+  g.fillText('It is not an NIA licence, official examination result, or endorsement by the Nepal Insurance Authority.', 877 * k, 1175 * k);
   return c;
 }
 

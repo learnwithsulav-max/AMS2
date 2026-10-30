@@ -12,7 +12,7 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 const read = (k: string, d: any) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? d; } catch { return d; } };
 
 export default function ExamApp() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { session, profile, loading, signOut } = useAuth();
   const [stage, setStage] = useState<'intro' | 'exam' | 'result'>('intro');
   const [access, setAccess] = useState<any>(null);
@@ -23,6 +23,7 @@ export default function ExamApp() {
   const [left, setLeft] = useState(0);
   const [result, setResult] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [historyCertBusy, setHistoryCertBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState<any>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,10 +35,27 @@ export default function ExamApp() {
     const historyKey = `lsw_exam_history:${session.user.id}`;
     const sessionKey = `lsw_exam_session:${session.user.id}`;
     setHistory(read(historyKey, []));
+    void fetch('/api/exam/history', { headers: { Authorization: `Bearer ${session?.access_token || ''}` }, cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (Array.isArray(data.attempts)) {
+          const merged = [...data.attempts, ...read(historyKey, [])]
+            .filter((item, index, all) => all.findIndex((candidate) =>
+              (item.id && candidate.id === item.id)
+              || (item.certId && candidate.certId === item.certId)
+              || (!item.id && !candidate.id && !item.certId && !candidate.certId
+                && item.score === candidate.score && item.max === candidate.max
+                && Math.abs(new Date(item.at).getTime() - new Date(candidate.at).getTime()) < 120000)) === index)
+            .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+          setHistory(merged.slice(0, 20));
+          try { localStorage.setItem(historyKey, JSON.stringify(merged.slice(0, 20))); } catch {}
+        }
+      }).catch(() => {});
     const s = read(sessionKey, null);
     if (s && new Date(s.attempt.endsAt).getTime() > Date.now() - 120000) setSaved(s);
     else setSaved(null);
-  }, [profile?.portal_type, session?.user.id]);
+  }, [profile?.portal_type, session?.access_token, session?.user.id]);
 
   useEffect(() => {
     if (!session?.access_token || profile?.portal_type !== 'exam_candidate') {
@@ -74,7 +92,7 @@ export default function ExamApp() {
     const r = await fetch('/api/exam/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ language: lang }),
     });
     const j = await r.json(); setBusy(false);
     if (!r.ok) return setErr(j.error || 'Something went wrong.');
@@ -103,7 +121,7 @@ export default function ExamApp() {
     if (!r.ok) return alert(j.error || 'Could not submit. Check your connection and try again.');
     localStorage.removeItem(`lsw_exam_session:${session.user.id}`);
     const historyKey = `lsw_exam_history:${session.user.id}`;
-    const h = [{ at: new Date().toISOString(), score: j.score, max: j.max, passed: j.passed }, ...read(historyKey, [])].slice(0, 10);
+    const h = [{ id: j.attemptId, at: j.issuedAt, name: j.name, score: j.score, max: j.max, passed: j.passed, certId: j.certId }, ...read(historyKey, [])].slice(0, 20);
     localStorage.setItem(historyKey, JSON.stringify(h)); setHistory(h);
     setResult(j); setStage('result');
   }, [attempt, answers, session]);
@@ -172,9 +190,14 @@ export default function ExamApp() {
             <h2 className="font-bold">{t('history')}</h2>
             <ul className="mt-3 grid gap-2 text-sm">
               {history.map((h, i) => (
-                <li key={i} className="flex items-center justify-between">
+                <li key={h.id || h.certId || i} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-100 p-3">
                   <span className="text-slate-600">{new Date(h.at).toLocaleDateString()}</span>
-                  <span><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
+                  <span className="flex items-center gap-2"><b>{h.score}</b>/{h.max} <Badge tone={h.passed ? 'green' : 'red'}>{h.passed ? 'Pass' : 'Fail'}</Badge></span>
+                  {h.passed && h.certId && <div className="flex gap-2">
+                    <Btn variant="ghost" disabled={historyCertBusy === h.certId} onClick={() => void downloadPastCertificate(h, 'pdf')}>
+                      {historyCertBusy === h.certId ? t('history_cert_preparing') : t('history_cert_download')}
+                    </Btn>
+                  </div>}
                 </li>
               ))}
               {!history.length && <li className="text-slate-500">-</li>}
@@ -182,6 +205,28 @@ export default function ExamApp() {
           </Card>
         </div>
       );
+  }
+
+  async function downloadPastCertificate(item: any, format: 'png' | 'pdf') {
+    if (!item?.passed || !item.certId || historyCertBusy) return;
+    setHistoryCertBusy(item.certId);
+    try {
+      const certificate = await renderCertificate({
+        name: item.name || profile?.name || 'Candidate',
+        score: Number(item.score) || 0,
+        max: Number(item.max) || 100,
+        certId: item.certId,
+        passed: true,
+        date: new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      });
+      const filename = `LearnWithSulav-Certificate-${String(item.name || 'Candidate').replace(/[^\p{L}\p{N}-]+/gu, '-')}`;
+      if (format === 'png') downloadPng(certificate, filename);
+      else await downloadPdf(certificate, filename);
+    } catch {
+      setErr('Could not prepare the certificate. Please try again.');
+    } finally {
+      setHistoryCertBusy(null);
+    }
   }
 
   /* ---------- result ---------- */
