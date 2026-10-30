@@ -5,7 +5,7 @@ type Lang = 'en' | 'ne';
 
 const dict: Record<Lang, Record<string, string>> = {
   en: {
-    nav_home: 'Home', nav_agency: 'Agency Portal', nav_exam: 'Exam Portal',
+    nav_home: 'Home', nav_agency: 'Agency Portal', nav_exam: 'Exam Portal', menu_open: 'Open navigation menu', menu_close: 'Close navigation menu',
     hero_title: 'Empowering Insurance Agents & Professionals with Smart Tools, Training Portals & Expert Mentorship.',
     hero_sub: 'Sulav Sapkota, Financial Advisor, Insurance Mentor and Coach.',
     cta_exam: 'Exam passes from Rs 99', cta_agency: 'Start 7-day free trial', cta_wa: 'Join WhatsApp Community',
@@ -42,7 +42,7 @@ const dict: Record<Lang, Record<string, string>> = {
     pay_first_cancel: 'Not now',
   },
   ne: {
-    nav_home: 'गृहपृष्ठ', nav_agency: 'एजेन्सी पोर्टल', nav_exam: 'परीक्षा पोर्टल',
+    nav_home: 'गृहपृष्ठ', nav_agency: 'एजेन्सी पोर्टल', nav_exam: 'परीक्षा पोर्टल', menu_open: 'नेभिगेसन मेनु खोल्नुहोस्', menu_close: 'नेभिगेसन मेनु बन्द गर्नुहोस्',
     hero_title: 'स्मार्ट टुल्स, तालिम पोर्टल र विशेषज्ञ मेन्टरसिपमार्फत बीमा अभिकर्ता तथा पेशाकर्मीहरूलाई सशक्त बनाउँदै।',
     hero_sub: 'सुलाव सापकोटा, वित्तीय सल्लाहकार, बीमा मेन्टर तथा कोच।',
     cta_exam: 'परीक्षा पास रु ९९ देखि', cta_agency: '७ दिनको निःशुल्क परीक्षण सुरु गर्नुहोस्', cta_wa: 'व्हाट्सएप समुदायमा जोडिनुहोस्',

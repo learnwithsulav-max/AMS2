@@ -105,7 +105,7 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
             <button
               type="button"
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-navy hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy md:hidden"
-              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-label={mobileMenuOpen ? t('menu_close') : t('menu_open')}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-portal-navigation"
               onClick={() => setMobileMenuOpen((open) => !open)}
@@ -115,13 +115,13 @@ export function Shell({ site, right, children }: { site: SiteKey; right?: ReactN
             {right}
           </div>
         </div>
-        {mobileMenuOpen && <nav id="mobile-portal-navigation" className="border-t border-slate-200 px-4 py-2 md:hidden" aria-label="Mobile portals">
+        <nav id="mobile-portal-navigation" hidden={!mobileMenuOpen} className="border-t border-slate-200 px-4 py-2 md:hidden" aria-label={t('portals')}>
           <div className="mx-auto flex max-w-7xl flex-col gap-1">
             {NAV.map(([k, l]) => <a key={k} href={siteUrl(k)} suppressHydrationWarning onClick={() => setMobileMenuOpen(false)} className={cx('rounded-md px-3 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy', site === k ? 'bg-blue-50 text-navy' : 'text-slate-700 hover:bg-slate-50')}>
               {t(l)}
             </a>)}
           </div>
-        </nav>}
+        </nav>
       </header>
 
       <main className="flex-1">{children}</main>

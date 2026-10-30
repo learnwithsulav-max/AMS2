@@ -5,7 +5,7 @@ export const cx = (...a: (string | false | undefined | null)[]) => a.filter(Bool
 
 const variants: Record<string, string> = {
   primary: 'bg-brand text-white hover:bg-navy-800',
-  cta: 'border border-[#F15A24] bg-navy text-white hover:bg-navy-800',
+  cta: 'border border-[#F15A24] bg-navy text-white hover:bg-navy-800 focus-visible:ring-2 focus-visible:ring-[#F15A24]',
   dark: 'bg-navy text-white hover:bg-slate-800',
   ghost: 'bg-white text-navy border border-slate-300 hover:bg-slate-50',
   gold: 'bg-gold text-white hover:brightness-95',
