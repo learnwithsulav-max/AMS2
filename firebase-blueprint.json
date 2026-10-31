@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile representing an insurance agent or user in the Learn With Sulav platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique Firebase Auth UID." },
+        "email": { "type": "string", "format": "email", "description": "User email address." },
+        "name": { "type": "string", "maxLength": 100, "description": "Full name of the agent or user." },
+        "phone": { "type": "string", "maxLength": 20, "description": "Contact phone number." },
+        "pan_number": { "type": "string", "maxLength": 20, "description": "Permanent Account Number (PAN)." },
+        "company": { "type": "string", "maxLength": 100, "description": "Affiliated insurance company." },
+        "branch": { "type": "string", "maxLength": 100, "description": "Branch name." },
+        "license_no": { "type": "string", "maxLength": 50, "description": "Agent license number." },
+        "role": { "type": "string", "enum": ["agent", "admin", "student"], "description": "Assigned access role." },
+        "membership": { "type": "string", "enum": ["free", "premium"], "description": "Membership tier." },
+        "status": { "type": "string", "enum": ["active", "suspended"], "description": "Account status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp." }
+      },
+      "required": ["uid", "email", "name", "role", "membership", "status", "createdAt"]
+    },
+    "Policy": {
+      "title": "Policy",
+      "description": "Life or non-life insurance policy managed by an agent.",
+      "type": "object",
+      "properties": {
+        "agentId": { "type": "string", "description": "UID of the agent who recorded the policy." },
+        "clientName": { "type": "string", "maxLength": 120, "description": "Client full name." },
+        "clientEmail": { "type": "string", "format": "email", "description": "Client email address." },
+        "clientPhone": { "type": "string", "maxLength": 20, "description": "Client phone number." },
+        "clientDob": { "type": "string", "maxLength": 30, "description": "Client date of birth (AD or BS)." },
+        "clientAddress": { "type": "string", "maxLength": 200, "description": "Client residential address." },
+        "nomineeName": { "type": "string", "maxLength": 120, "description": "Nominee beneficiary name." },
+        "nomineeRelation": { "type": "string", "maxLength": 50, "description": "Nominee relationship to policyholder." },
+        "company": { "type": "string", "maxLength": 100, "description": "Insurance company underwriter." },
+        "planType": { "type": "string", "maxLength": 80, "description": "Insurance plan type (endowment, money_back, etc.)." },
+        "premiumMode": { "type": "string", "enum": ["regular", "single"], "description": "Mode of premium payment." },
+        "termYears": { "type": "number", "description": "Policy duration term in years." },
+        "premium": { "type": "number", "description": "Annual or single premium amount in NPR." },
+        "issueDate": { "type": "string", "maxLength": 20, "description": "Policy issue date." },
+        "nextDueDate": { "type": "string", "maxLength": 20, "description": "Next renewal premium due date." },
+        "status": { "type": "string", "enum": ["in_force", "lapsed", "matured", "surrendered"], "description": "Current policy status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp." }
+      },
+      "required": ["agentId", "clientName", "company", "premiumMode", "premium", "issueDate", "createdAt"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Prospective insurance client pipeline lead.",
+      "type": "object",
+      "properties": {
+        "agentId": { "type": "string", "description": "UID of the owner agent." },
+        "name": { "type": "string", "maxLength": 100, "description": "Prospect name." },
+        "phone": { "type": "string", "maxLength": 20, "description": "Prospect phone." },
+        "email": { "type": "string", "format": "email", "description": "Prospect email." },
+        "estPremium": { "type": "number", "description": "Estimated annual premium in NPR." },
+        "stage": { "type": "string", "enum": ["Lead In", "Contacted", "Pitching", "Follow-up", "Closed Won", "Lost"], "description": "Sales pipeline stage." },
+        "notes": { "type": "string", "maxLength": 1000, "description": "Internal discussion notes." },
+        "followUpDate": { "type": "string", "maxLength": 20, "description": "Next follow-up date." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["agentId", "name", "stage", "createdAt"]
+    },
+    "AgencyFeedback": {
+      "title": "AgencyFeedback",
+      "description": "Agent feature suggestion or system feedback submission.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the author user." },
+        "title": { "type": "string", "maxLength": 120, "description": "Summary title." },
+        "kind": { "type": "string", "maxLength": 40, "description": "Feedback kind (feature, bug, question)." },
+        "category": { "type": "string", "maxLength": 40, "description": "Category." },
+        "details": { "type": "string", "maxLength": 2000, "description": "Detailed explanation." },
+        "status": { "type": "string", "enum": ["new", "reviewing", "planned", "completed", "closed"], "description": "Resolution status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission timestamp." }
+      },
+      "required": ["userId", "title", "details", "status", "createdAt"]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Health check document to verify client connectivity.",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "description": "Status message." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Probe timestamp." }
+      },
+      "required": ["status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user or insurance agent account records."
+    },
+    "/policies/{policyId}": {
+      "schema": "Policy",
+      "description": "Client insurance policies owned and managed by agents."
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "CRM leads pipeline for insurance prospects."
+    },
+    "/agency_feedback/{feedbackId}": {
+      "schema": "AgencyFeedback",
+      "description": "Agent suggestions and feedback reports."
+    },
+    "/test/{docId}": {
+      "schema": "TestConnection",
+      "description": "Diagnostic health check probe collection."
+    }
+  }
+}

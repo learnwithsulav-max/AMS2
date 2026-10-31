@@ -23,6 +23,24 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
     setBusy(true);
     setMsg('');
     try {
+      if (provider === 'google') {
+        try {
+          const { signInWithGoogle } = await import('@/lib/firebase');
+          await signInWithGoogle();
+          setMsg('Successfully signed in with Google!');
+          setBusy(false);
+          return;
+        } catch (fbErr: any) {
+          // If popup is closed or user cancels, or fallback to standard OAuth
+          if (fbErr?.code === 'auth/popup-closed-by-user') {
+            setMsg('Google sign-in popup was closed.');
+            setBusy(false);
+            return;
+          }
+          console.warn('Firebase Google Auth fallback:', fbErr);
+        }
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {

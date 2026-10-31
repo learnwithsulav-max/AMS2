@@ -1,0 +1,196 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Helper Functions ---
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == "learnwithsulav@gmail.com" && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // --- Validation Helper: UserProfile ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'membership', 'status', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'name', 'phone', 'pan_number', 'company', 'branch', 'license_no', 'role', 'membership', 'status', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 120
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role in ['agent', 'student', 'admin']
+        && data.membership in ['free', 'premium']
+        && data.status in ['active', 'suspended']
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 20))
+        && (!('pan_number' in data) || (data.pan_number is string && data.pan_number.size() <= 20))
+        && (!('company' in data) || (data.company is string && data.company.size() <= 100))
+        && (!('branch' in data) || (data.branch is string && data.branch.size() <= 100))
+        && (!('license_no' in data) || (data.license_no is string && data.license_no.size() <= 50));
+    }
+
+    // --- Validation Helper: Policy ---
+    function isValidPolicy(data) {
+      return data.keys().hasAll(['agentId', 'clientName', 'company', 'premiumMode', 'premium', 'issueDate', 'createdAt'])
+        && data.keys().hasOnly(['agentId', 'clientName', 'clientEmail', 'clientPhone', 'clientDob', 'clientAddress', 'nomineeName', 'nomineeRelation', 'company', 'planType', 'premiumMode', 'termYears', 'premium', 'issueDate', 'nextDueDate', 'status', 'createdAt', 'updatedAt'])
+        && data.agentId is string && data.agentId.size() <= 128
+        && data.clientName is string && data.clientName.size() > 0 && data.clientName.size() <= 120
+        && data.company is string && data.company.size() > 0 && data.company.size() <= 100
+        && data.premiumMode in ['regular', 'single']
+        && data.premium is number && data.premium >= 0 && data.premium <= 1000000000
+        && data.issueDate is string && data.issueDate.size() <= 20
+        && (!('clientEmail' in data) || (data.clientEmail is string && data.clientEmail.size() <= 120))
+        && (!('clientPhone' in data) || (data.clientPhone is string && data.clientPhone.size() <= 20))
+        && (!('clientDob' in data) || (data.clientDob is string && data.clientDob.size() <= 30))
+        && (!('clientAddress' in data) || (data.clientAddress is string && data.clientAddress.size() <= 200))
+        && (!('nomineeName' in data) || (data.nomineeName is string && data.nomineeName.size() <= 120))
+        && (!('nomineeRelation' in data) || (data.nomineeRelation is string && data.nomineeRelation.size() <= 50))
+        && (!('planType' in data) || (data.planType is string && data.planType.size() <= 80))
+        && (!('termYears' in data) || (data.termYears is number && data.termYears >= 1 && data.termYears <= 100))
+        && (!('nextDueDate' in data) || (data.nextDueDate is string && data.nextDueDate.size() <= 20))
+        && (!('status' in data) || (data.status in ['in_force', 'lapsed', 'matured', 'surrendered']));
+    }
+
+    // --- Validation Helper: Lead ---
+    function isValidLead(data) {
+      return data.keys().hasAll(['agentId', 'name', 'stage', 'createdAt'])
+        && data.keys().hasOnly(['agentId', 'name', 'phone', 'email', 'estPremium', 'stage', 'notes', 'followUpDate', 'createdAt'])
+        && data.agentId is string && data.agentId.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.stage in ['Lead In', 'Contacted', 'Pitching', 'Follow-up', 'Closed Won', 'Lost']
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 20))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 120))
+        && (!('estPremium' in data) || (data.estPremium is number && data.estPremium >= 0))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && (!('followUpDate' in data) || (data.followUpDate is string && data.followUpDate.size() <= 20));
+    }
+
+    // --- Validation Helper: AgencyFeedback ---
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'title', 'details', 'status', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'title', 'kind', 'category', 'details', 'status', 'createdAt'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.details is string && data.details.size() > 0 && data.details.size() <= 2000
+        && data.status in ['new', 'reviewing', 'planned', 'completed', 'closed']
+        && (!('kind' in data) || (data.kind is string && data.kind.size() <= 40))
+        && (!('category' in data) || (data.category is string && data.category.size() <= 40));
+    }
+
+    // --- Collection Rules ---
+
+    // 1. User Profiles Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().role in ['agent', 'student']
+        && incoming().createdAt == request.time;
+      allow update: if (
+        isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'pan_number', 'company', 'branch', 'license_no', 'membership', 'updatedAt'])
+      ) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 2. Policies Collection
+    match /policies/{policyId} {
+      allow get: if (isSignedIn() && existing().agentId == request.auth.uid) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.agentId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn()
+        && isValidId(policyId)
+        && isValidPolicy(incoming())
+        && incoming().agentId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if (
+        isSignedIn()
+        && existing().agentId == request.auth.uid
+        && isValidPolicy(incoming())
+        && incoming().agentId == existing().agentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'clientName', 'clientEmail', 'clientPhone', 'clientDob', 'clientAddress',
+          'nomineeName', 'nomineeRelation', 'company', 'planType', 'premiumMode',
+          'termYears', 'premium', 'issueDate', 'nextDueDate', 'status', 'updatedAt'
+        ])
+      ) || isAdmin();
+      allow delete: if (isSignedIn() && existing().agentId == request.auth.uid) || isAdmin();
+    }
+
+    // 3. Leads Collection
+    match /leads/{leadId} {
+      allow get: if (isSignedIn() && existing().agentId == request.auth.uid) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.agentId == request.auth.uid) || isAdmin();
+      allow create: if isSignedIn()
+        && isValidId(leadId)
+        && isValidLead(incoming())
+        && incoming().agentId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if (
+        isSignedIn()
+        && existing().agentId == request.auth.uid
+        && isValidLead(incoming())
+        && incoming().agentId == existing().agentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'email', 'estPremium', 'stage', 'notes', 'followUpDate'])
+      ) || isAdmin();
+      allow delete: if (isSignedIn() && existing().agentId == request.auth.uid) || isAdmin();
+    }
+
+    // 4. Agency Feedback Collection
+    match /agency_feedback/{feedbackId} {
+      allow get: if (isSignedIn() && existing().userId == request.auth.uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+        && isValidId(feedbackId)
+        && isValidFeedback(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().status == 'new'
+        && incoming().createdAt == request.time;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 5. Connection Test Health Check
+    match /test/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 6. Admin Roles Registry
+    match /admins/{adminUid} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable directly in cloud console
+    }
+  }
+}
