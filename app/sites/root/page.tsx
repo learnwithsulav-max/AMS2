@@ -5,6 +5,7 @@ import { Shell } from '@/components/Shell';
 import { Card, LinkBtn } from '@/components/ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, siteUrl } from '@/lib/brand';
+import { ContactForm } from '@/components/ContactForm';
 
 const agentTools = [
   { icon: '◫', title: { en: 'Lead and policy board', ne: 'लिड तथा पोलिसी बोर्ड' }, body: { en: 'Keep follow-ups, policy records and renewals organized in one workspace.', ne: 'फलोअप, पोलिसी र नवीकरणलाई एउटै कार्यक्षेत्रमा व्यवस्थित राख्नुहोस्।' } },
@@ -93,8 +94,17 @@ export default function Landing() {
         <div className="mt-6 divide-y divide-slate-200 border-y border-slate-200">{faq.map((item) => <details key={item.q.en} className="group py-5"><summary className="cursor-pointer list-none pr-8 font-bold text-slate-900 marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4"><span className="flex items-center justify-between gap-4">{text(item.q)}<span aria-hidden="true" className="text-xl text-[#0A4F8A] group-open:rotate-45">+</span></span></summary><p className="mt-3 max-w-3xl leading-relaxed text-slate-600">{text(item.a)}</p></details>)}</div>
       </section>
 
-      <section className="bg-navy py-12 text-white" id="contact">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-2xl font-extrabold">{lang === 'en' ? 'Need help choosing a portal?' : 'कुन पोर्टल छान्ने भन्नेमा सहयोग चाहिन्छ?'}</h2><p className="mt-2 text-slate-200">{lang === 'en' ? 'Contact us or join the Learn With Sulav community.' : 'हामीलाई सम्पर्क गर्नुहोस् वा Learn With Sulav समुदायमा जोडिनुहोस्।'}</p><a className="mt-3 inline-block font-semibold text-white underline underline-offset-4" href={`mailto:${BRAND.contact.email}`}>{BRAND.contact.email}</a></div><div className="flex flex-wrap gap-3"><LinkBtn href={BRAND.links.whatsapp} variant="ghost" target="_blank" rel="noopener noreferrer">{lang === 'en' ? 'WhatsApp Community' : 'WhatsApp समुदाय'}</LinkBtn><LinkBtn href={BRAND.links.facebook} variant="ghost" target="_blank" rel="noopener noreferrer">Facebook</LinkBtn></div></div>
+      <section className="bg-navy py-16 text-white" id="contact">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-orange-200">{lang === 'en' ? 'Get in touch' : 'सम्पर्क गर्नुहोस्'}</p>
+            <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">{lang === 'en' ? 'Let’s make your next step clearer.' : 'तपाईंको अर्को कदम स्पष्ट बनाऔँ।'}</h2>
+            <p className="mt-4 max-w-md leading-relaxed text-blue-100">{lang === 'en' ? 'Have a question about a portal, exam practice, or your account? Send a note and we’ll get back to you.' : 'पोर्टल, परीक्षा अभ्यास वा खाताबारे प्रश्न छ? सन्देश पठाउनुहोस्, हामी जवाफ दिनेछौँ।'}</p>
+            <a className="mt-5 inline-block font-semibold text-white underline underline-offset-4" href={`mailto:${BRAND.contact.email}`}>{BRAND.contact.email}</a>
+            <div className="mt-7 flex flex-wrap gap-3"><LinkBtn href={BRAND.links.whatsapp} variant="ghost" target="_blank" rel="noopener noreferrer">{lang === 'en' ? 'WhatsApp Community' : 'WhatsApp समुदाय'}</LinkBtn><LinkBtn href={BRAND.links.facebook} variant="ghost" target="_blank" rel="noopener noreferrer">Facebook</LinkBtn></div>
+          </div>
+          <ContactForm />
+        </div>
       </section>
     </Shell>
   );
