@@ -100,6 +100,10 @@ function Dashboard() {
   const passRate = done.length ? Math.round((done.filter((a) => a.passed).length / done.length) * 100) : 0;
   const inRange = POL.filter((p) => p.issue_date >= from && p.issue_date <= to);
   const partialTables = TABLES.filter((table) => (counts[table] || 0) > (d[table] || []).length);
+  const pendingApprovals = (d.billing_orders || []).filter((order) => order.status === 'pending' && order.product !== 'exam_pass');
+  const dueLeads = L.filter((lead) => lead.follow_up_date && lead.follow_up_date <= today() && !String(lead.stage || '').startsWith('Closed'));
+  const inactiveAgents = P.filter((agent) => agent.status && agent.status !== 'active');
+  const leaderboard = P.map((agent) => ({ ...agent, policyCount: POL.filter((policy) => policy.agent_id === agent.id).length, premium: POL.filter((policy) => policy.agent_id === agent.id).reduce((sum, policy) => sum + Number(policy.premium || 0), 0) })).sort((a, b) => b.premium - a.premium).slice(0, 5);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -117,13 +121,15 @@ function Dashboard() {
 
       {tab === 'Overview' && (
         <div className="grid gap-6">
+          <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#D39A26]">Operations overview</p><h1 className="text-2xl font-extrabold text-[#0A4F8A]">System command center</h1><p className="mt-1 text-sm text-slate-600">Live records across agents, policies, exams, billing, and service queues.</p></div><Badge tone="blue">{from} → {to}</Badge></div>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
-              ['Agents', counts.profiles || 0], ['Premium members', P.filter((p) => p.membership === 'premium').length],
-              ['Exam attempts', counts.exam_attempts || 0], ['Exam pass rate', `${passRate}%`],
-              ['Leads', counts.leads || 0], ['Closed won', L.filter((l) => l.stage === 'Closed Won').length],
-              ['Premium collected', npr(POL.reduce((s, p) => s + Number(p.premium || 0), 0))], ['Weighted premium', npr(POL.reduce((s, p) => s + weighted(p), 0))],
-            ].map(([k, v]) => <Card key={String(k)} className="p-4"><p className="text-sm text-slate-500">{k}</p><p className="mt-1 text-2xl font-extrabold">{v}</p></Card>)}
+              ['Agents', counts.profiles || 0, 'Registered'], ['Policies', POL.length, 'Loaded records'], ['Premium collected', npr(POL.reduce((s, p) => s + Number(p.premium || 0), 0)), 'Portfolio value'], ['Pass rate', `${passRate}%`, `${done.length} submitted`],
+            ].map(([k, v, hint]) => <Card key={String(k)} className="p-4"><p className="text-sm text-slate-500">{k}</p><p className="mt-1 text-2xl font-extrabold">{v}</p><p className="mt-1 text-xs text-slate-500">{hint}</p></Card>)}
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <Card className="p-5"><div className="flex items-center justify-between"><div><h2 className="font-bold">Agent performance</h2><p className="text-sm text-slate-500">Ranked by loaded policy premium.</p></div><Badge tone="gold">Top 5</Badge></div><div className="mt-4 grid gap-3">{leaderboard.map((agent, index) => <div key={agent.id} className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-sm"><span className="font-bold text-slate-400">0{index + 1}</span><div><div className="flex justify-between gap-2"><b>{agent.name || agent.email}</b><span>{npr(agent.premium)}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0A4F8A]" style={{ width: `${leaderboard[0]?.premium ? Math.max(8, Math.round((agent.premium / leaderboard[0].premium) * 100)) : 0}%` }} /></div><p className="mt-1 text-xs text-slate-500">{agent.policyCount} policies</p></div></div>)}{!leaderboard.length && <p className="text-sm text-slate-500">Agent performance will appear as policy records are added.</p>}</div></Card>
+            <Card className="p-5"><div className="flex items-center justify-between"><h2 className="font-bold">Insight queue</h2><Badge tone={pendingApprovals.length + dueLeads.length ? 'amber' : 'green'}>{pendingApprovals.length + dueLeads.length}</Badge></div><div className="mt-3 grid gap-2 text-sm"><button className="flex justify-between rounded-lg bg-amber-50 p-3 text-left" onClick={() => setTab('Billing queue')}><span>Pending approvals</span><b>{pendingApprovals.length}</b></button><button className="flex justify-between rounded-lg bg-amber-50 p-3 text-left" onClick={() => setTab('Leads')}><span>Follow-ups due</span><b>{dueLeads.length}</b></button><button className="flex justify-between rounded-lg bg-slate-50 p-3 text-left" onClick={() => setTab('Agents')}><span>Inactive agents</span><b>{inactiveAgents.length}</b></button><div className="rounded-lg bg-emerald-50 p-3 text-emerald-800">{partialTables.length ? `${partialTables.length} large tables need review in their detailed tabs.` : 'All overview datasets are within the loaded page window.'}</div></div></Card>
           </div>
           <WorkflowBoard
             policies={POL}
