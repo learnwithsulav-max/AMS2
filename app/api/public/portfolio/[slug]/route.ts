@@ -3,6 +3,11 @@ import { admin } from '@/lib/supabase-admin';
 
 export async function POST(request: Request, context: { params: Promise<{ slug: string }> }) {
   const { slug } = await context.params;
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+  const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await admin.from('activity_log').select('id', { count: 'exact', head: true }).eq('action', 'portfolio_lead_received').filter('meta->>ip', 'eq', ip).gte('created_at', cutoff);
+  if ((recentCount || 0) >= 5) return NextResponse.json({ error: 'Too many submissions. Please try again later.' }, { status: 429 });
+  if (Number(request.headers.get('content-length') || 0) > 32 * 1024) return NextResponse.json({ error: 'Submission is too large.' }, { status: 413 });
   const body = await request.json().catch(() => null);
   if (!body || body.website) return NextResponse.json({ error: 'Invalid submission.' }, { status: 400 });
   const { data: profile } = await admin.from('public_profiles').select('user_id').eq('slug', slug).eq('is_published', true).maybeSingle();
@@ -23,7 +28,6 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     result = await admin.from('portfolio_reviews').insert({ agent_id: profile.user_id, reviewer_name, rating, review, approved: false });
   } else return NextResponse.json({ error: 'Choose a valid submission type.' }, { status: 400 });
   if (result.error) return NextResponse.json({ error: 'Could not save your submission. Please try again.' }, { status: 500 });
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;
   await admin.from('activity_log').insert({ actor: 'Public visitor', action: kind === 'lead' ? 'portfolio_lead_received' : 'portfolio_review_received', meta: { agent_id: profile.user_id, ip, user_agent: request.headers.get('user-agent')?.slice(0, 500) || null } });
   return NextResponse.json({ ok: true, message: kind === 'review' ? 'Review submitted for approval.' : 'Your request was sent to the advisor.' }, { status: 201 });
 }
