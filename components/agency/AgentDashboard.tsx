@@ -43,7 +43,15 @@ export function AgentDashboard({ profile, subscription, onNavigate }: Props) {
     activeLeads >= 3 ? 'Your active pipeline is ready for a focused conversion sprint.' : 'Add more prospects to build a healthier pipeline.',
   ], [activeLeads, dueLeads.length, renewals.length]);
 
+  const subscriptionStatus = String(subscription?.status || 'active').toLowerCase();
+  const subscriptionEndsAt = subscription?.ends_at || subscription?.current_period_end || subscription?.expires_at;
+  const daysRemaining = subscriptionEndsAt ? Math.ceil((new Date(subscriptionEndsAt).getTime() - Date.now()) / 86400000) : null;
+  const isSuspended = ['suspended', 'expired', 'cancelled', 'canceled'].includes(subscriptionStatus) || daysRemaining !== null && daysRemaining < 0;
+  const needsRenewal = !isSuspended && daysRemaining !== null && daysRemaining <= 7;
+
   return <section className="grid gap-5">
+    {isSuspended && <Card className="border-rose-200 bg-rose-50 p-4" role="alert"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-rose-900">Your workspace is read-only</p><p className="mt-1 text-sm text-rose-800">Your subscription has ended. Renew to add policies, manage leads, and publish portfolio changes.</p></div><Btn onClick={() => onNavigate('billing')}>Renew subscription</Btn></div></Card>}
+    {needsRenewal && <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-amber-950">Renewal coming up{daysRemaining !== null ? ` in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}` : ''}</p><p className="mt-1 text-sm text-amber-900">Keep your client records and public portfolio active without interruption.</p></div><Btn onClick={() => onNavigate('billing')}>Review billing</Btn></div></Card>}
     <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#D39A26]">Agent workspace</p><h2 className="text-2xl font-extrabold text-[#0A4F8A]">Good to see you, {profile.name?.split(' ')[0] || 'Agent'}</h2><p className="mt-1 text-sm text-slate-600">A practical snapshot of your portfolio, pipeline, and next best actions.</p></div><Btn onClick={() => onNavigate('calculator')}>Open quote calculator</Btn></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[['Portfolio premium', npr(premium), 'Recorded policy value', 'blue'], ['Active policies', policies.length, 'Keep renewals close', 'green'], ['Follow-ups due', dueLeads.length, dueLeads.length ? 'Action needed today' : 'Queue is clear', dueLeads.length ? 'amber' : 'slate'], ['Pipeline leads', activeLeads, 'Open opportunities', 'purple']].map(([label, value, hint, tone]) => <Card key={String(label)} className="p-4"><div className="flex items-center justify-between"><p className="text-sm text-slate-500">{label}</p><Badge tone={tone as any}>Live</Badge></div><p className="mt-2 text-2xl font-extrabold text-slate-900">{value}</p><p className="mt-1 text-xs text-slate-500">{hint}</p></Card>)}
