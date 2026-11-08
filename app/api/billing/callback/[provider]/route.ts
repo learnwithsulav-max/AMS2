@@ -16,6 +16,22 @@ function verifySignature(payload: Record<string, any>, secret: string) {
 }
 
 async function markPaid(order: any, transaction: string, request: Request) {
+  // Claim the order before applying access, coupon, and notification side effects.
+  // The conditional update makes browser/provider retries no-ops instead of replaying activation.
+  const { data: claimed, error: claimError } = await admin
+    .from('billing_orders')
+    .update({ status: 'paid', provider_transaction: transaction, updated_at: new Date().toISOString() })
+    .eq('id', order.id)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
+  if (claimError) throw claimError;
+  if (!claimed) {
+    const { data: current } = await admin.from('billing_orders').select('status,metadata').eq('id', order.id).maybeSingle();
+    if (current?.status === 'paid') return current.metadata?.pass_code || null;
+    throw new Error('Payment order was already claimed or is no longer payable.');
+  }
+
   let passCode: string | null = null;
   if (order.product === 'agency_basic' || order.product === 'agency_pro') {
     const plan = order.package_code === 'agency_pro' ? 'pro' : 'basic';
@@ -43,7 +59,7 @@ async function markPaid(order: any, transaction: string, request: Request) {
     }
     order.metadata = { ...meta, pass_code: passCode };
   }
-  const { error: updateError } = await admin.from('billing_orders').update({ status: 'paid', provider_transaction: transaction, metadata: order.metadata || {}, updated_at: new Date().toISOString() }).eq('id', order.id).eq('status', 'pending');
+  const { error: updateError } = await admin.from('billing_orders').update({ metadata: order.metadata || {}, updated_at: new Date().toISOString() }).eq('id', order.id).eq('status', 'paid');
   if (updateError) throw updateError;
   if(order.metadata?.coupon_code){const {error}=await admin.rpc('finalize_coupon',{p_order_id:order.id});if(error)throw error;}
   if (order.user_id) {

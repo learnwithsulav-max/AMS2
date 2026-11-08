@@ -91,17 +91,7 @@ async function deliver(row: OutboxRow) {
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    return NextResponse.json({
-      processed: 0,
-      sent: 0,
-      skipped: 0,
-      failed: 0,
-      configurationRequired: [
-        'CRON_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL', 'TWILIO_ACCOUNT_SID',
-        'TWILIO_AUTH_TOKEN', 'TWILIO_FROM', 'WHATSAPP_ACCESS_TOKEN',
-        'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_TEMPLATE_NAME',
-      ],
-    });
+    return NextResponse.json({ error: 'Notification worker is not configured.' }, { status: 503 });
   }
   if (request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

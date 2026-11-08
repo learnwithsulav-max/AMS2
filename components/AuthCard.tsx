@@ -150,13 +150,19 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
       if (error) {
         setMsg(error.message);
       } else if (!data.session) {
+        setMode('login');
         setMsg('Account created. Check your email for confirmation, then log in.');
-      } else if (photo && data.user) {
-        try {
-          await uploadAvatar(data.user.id, photo);
-        } catch {
-          setMsg('Account created! Avatar upload can be completed from your profile.');
+      } else {
+        if (photo && data.user) {
+          try {
+            await uploadAvatar(data.user.id, photo);
+          } catch {
+            setMsg('Account created! Avatar upload can be completed from your profile.');
+          }
         }
+        await supabase.auth.signOut();
+        setMode('login');
+        setMsg('Account created. Please log in to open your agent portal.');
       }
     }
     setBusy(false);
