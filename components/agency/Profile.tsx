@@ -5,6 +5,7 @@ import { uploadAvatar } from '@/lib/auth';
 import { Badge, Btn, Card, Field } from '../ui';
 import { calculateAgentTitle, npr } from '@/lib/rules';
 import { POPULAR_NEPALI_BRANCHES } from '@/lib/nepali-companies';
+import { PasskeySetup } from '../PasskeySetup';
 
 export function Profile({ profile, reload }: { profile: any; reload: () => void }) {
   const [f, setF] = useState({
@@ -158,6 +159,7 @@ export function Profile({ profile, reload }: { profile: any; reload: () => void 
           Save Profile Changes
         </Btn>
       </form>
+      <PasskeySetup />
     </Card>
   );
 }

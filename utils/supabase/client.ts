@@ -9,7 +9,9 @@ let browserClient: SupabaseClient | undefined;
 export function createClient(): SupabaseClient {
   if (!browserClient) {
     const { url, key } = getSupabaseConfig();
-    browserClient = createBrowserClient(url, key);
+    browserClient = createBrowserClient(url, key, {
+      auth: { experimental: { passkey: true } },
+    });
   }
   return browserClient;
 }

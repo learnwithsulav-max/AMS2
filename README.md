@@ -9,34 +9,47 @@ One Next.js app, four portals, one brand. `middleware.ts` maps the host name to 
 | exam.sulavs.com.np | Practice exam | `app/sites/exam` |
 | admin.sulavs.com.np | Master admin | `app/sites/admin` |
 
-The app lives in `lsw-platform/lsw` in this workspace. Its `next.config.js` pins the
-Turbopack root to this directory so the separate workspace-level lockfile is not mistaken
-for the app's dependency root.
+This repository contains the application. Its `next.config.js` pins the Turbopack root to
+the application directory so workspace-level lockfiles are not mistaken for its dependency root.
 
 ## Setup (about 20 minutes)
 
-1. **Supabase**: create a free project. SQL Editor > paste `supabase/schema.sql` > Run.
-   Authentication > Providers > Email: turn off "Confirm email" so agents can log in right after registering.
+1. **Supabase**: create a project. Run `supabase/schema.sql`, then apply each file in
+   `supabase/migrations` in filename order. Keep **Confirm email** enabled so password
+   registrations must verify their email before signing in.
 2. **Question bank**: `data/questions.json` contains 250 questions across 10 topics. Every exam selects five
    questions from each topic and shuffles their order and answer choices. To replace the bank, export a CSV with
    columns `Category, Question, Option A, Option B, Option C, Option D, Correct` to `data/NIA_Question_Bank.csv`,
    then run `npm run import:questions`. Category values must match the keys in `lib/questions.ts`; every topic
    needs at least five questions for exams to start.
-3. **Environment**: configure `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and
+3. **Environment**: copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from Supabase Project Settings > API. The public publishable key is
-   safe for browser use. Set `SUPABASE_SERVICE_ROLE_KEY` separately for the protected server-side admin and exam
-   APIs; never expose it to the browser or commit it. The Supabase helpers live in `utils/supabase/`.
+   safe for browser use. Set `SUPABASE_SERVICE_ROLE_KEY` separately for protected server-side routes; never
+   expose it to the browser or commit it. Keep all provider credentials out of Git and browser-visible
+   `NEXT_PUBLIC_` variables. The Supabase helpers live in `utils/supabase/`.
 4. **Use the website and app on your domain**: set `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np` in `.env.local` and in the Vercel Production environment. All portal links use HTTPS on the production domains. Vercel preview deployments remain available on their `vercel.app` address.
 5. **Deploy**: push to GitHub, import into Vercel, and add the Supabase variables plus `NEXT_PUBLIC_ROOT_DOMAIN=sulavs.com.np`.
    In Vercel > Domains add `sulavs.com.np`, `www`, `agency`, `exam` and `admin`.
-6. **Supabase Auth URLs**: set the Site URL to `https://sulavs.com.np` and add `https://sulavs.com.np/**`,
-   `https://www.sulavs.com.np/**`, `https://agency.sulavs.com.np/**`, `https://exam.sulavs.com.np/**`,
-   and `https://admin.sulavs.com.np/**` to the redirect URL allowlist.
-7. **Install as an app**: visit the domain in a mobile browser and choose “Add to Home Screen” or “Install app”.
+6. **Supabase Auth URLs**: set the Site URL to `https://sulavs.com.np` and allow the deployed callback URLs:
+   `https://agency.sulavs.com.np/api/auth/callback` and `https://exam.sulavs.com.np/api/auth/callback`.
+   Add the equivalent localhost callback during development. Add the corresponding Supabase callback
+   (`https://<project-ref>.supabase.co/auth/v1/callback`) to each identity provider's console.
+7. **Social sign-in**: enable Google and Facebook under Supabase Authentication > Providers. Register the
+   Supabase callback URL in Google Cloud and Meta's provider consoles. TikTok and Instagram require supported
+   custom OAuth/OIDC provider configurations in Supabase; the buttons remain unavailable until those provider
+   credentials and redirect settings are configured.
+8. **Phone OTP**: enable phone sign-in in Supabase Authentication > Providers and configure a supported SMS
+   provider. WhatsApp OTP is supported only with Twilio or Twilio Verify configured in Supabase. SMS/WhatsApp
+   OTP sign-in is an alternative to password sign-in; email/password registrations still require email
+   confirmation. Configure provider secrets only in Supabase/Vercel secret settings, never in source control.
+9. **Passkeys**: enable passkey authentication in Supabase Authentication > Passkeys. Use the relying-party
+   ID `sulavs.com.np` and allow origins `https://www.sulavs.com.np`, `https://agency.sulavs.com.np`,
+   and `https://exam.sulavs.com.np`. Passkeys require HTTPS and must be enabled in the browser client.
+10. **Install as an app**: visit the domain in a mobile browser and choose “Add to Home Screen” or “Install app”.
    The installed app opens the same HTTPS website in standalone mode.
-8. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
+11. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
    "DNS only" (grey cloud) or set SSL/TLS mode to Full (strict).
-9. **First admin**: create the admin user in Supabase Authentication > Users, then run in the SQL Editor:
+12. **First admin**: create the admin user in Supabase Authentication > Users, then run in the SQL Editor:
    `update profiles set role = 'admin', membership = 'premium' where email = 'learnwithsulav@gmail.com';`
    Set the account password in Supabase; never put it in source code, `.env` files, or Git. Admin data and
    mutations are served through authenticated server routes; keep `SUPABASE_SERVICE_ROLE_KEY` server-only.
@@ -48,6 +61,11 @@ For a new Supabase project, run `supabase/schema.sql` as above, then apply the r
 For email/SMS/WhatsApp delivery, configure the Resend and Twilio values above as needed. SMS is limited to Supabase phone OTP and payment confirmations. WhatsApp requires Meta Cloud API credentials and an approved template with one body-text variable (`{{1}}`); set `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE` and `WHATSAPP_API_VERSION` in the deployment environment. WhatsApp is queued only for users who opted in, and email remains the default for notifications.
 
 Company-specific TDI and BDI layer rates can be edited or deleted in Admin > Configuration. Deleting a company rule returns calculations to the configured system defaults in `lib/rules.ts`; the BDI percentages remain editable values rather than a new formula.
+
+## Portal dashboards
+
+Agency, admin, and exam dashboards use grouped, expandable side navigation with the signed-in user's name and profile photo. The daily announcement strip appears above the portal header. Charts reflect records available to each account; admin tables indicate when a large dataset is only partially loaded.
+
 ## Things to adjust
 
 - `lib/brand.ts`: exam length, pass percentage, links, contact details.
@@ -55,12 +73,5 @@ Company-specific TDI and BDI layer rates can be edited or deleted in Admin > Con
 - `public/certificate-template.jpg`: certificate artwork. Field positions are in `components/exam/certificate.ts`.
 - Premium access: Admin > Agents > Membership. Free members get Leads and Plans; premium adds TDI/BDI and Monthly scheme.
 
-## Product specification
-
-The four portals are an existing functional prototype, not yet the complete SaaS described
-in the Learn With Sulav master architecture. Continue implementation in staged increments:
-shared security and domain foundations first, then the public gateway and agent portfolios,
-agency workflows, paid exam passes, and SuperAdmin operations. Do not expose sensitive
-profile fields through public portfolio queries; add public-facing profile data in a separate
-RLS-protected surface.
-# AMS2
+`info@sulavs.com.np` is a sender address, not a mailbox. A login inbox requires separate email hosting;
+Cloudflare Email Routing and Resend alone do not provide an inbox.

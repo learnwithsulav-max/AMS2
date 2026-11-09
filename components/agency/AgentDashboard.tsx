@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { today, npr } from '@/lib/rules';
 import { Badge, Btn, Card } from '../ui';
+import { BarChart, DonutChart, TrendChart } from '../DashboardCharts';
 
 type Props = { profile: any; subscription: any; onNavigate: (tab: string) => void };
 
@@ -48,6 +49,28 @@ export function AgentDashboard({ profile, subscription, onNavigate }: Props) {
   const daysRemaining = subscriptionEndsAt ? Math.ceil((new Date(subscriptionEndsAt).getTime() - Date.now()) / 86400000) : null;
   const isSuspended = ['suspended', 'expired', 'cancelled', 'canceled'].includes(subscriptionStatus) || daysRemaining !== null && daysRemaining < 0;
   const needsRenewal = !isSuspended && daysRemaining !== null && daysRemaining <= 7;
+  const monthBuckets = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, index) => {
+      const month = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+      const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+      const rows = policies.filter((policy) => String(policy.issue_date || '').slice(0, 7) === key);
+      return {
+        label: month.toLocaleString('en', { month: 'short' }),
+        premium: rows.reduce((sum, policy) => sum + Number(policy.premium || 0), 0),
+        count: rows.length,
+      };
+    });
+  }, [policies]);
+  const leadStages = useMemo(() => {
+    const colors = ['#0A4F8A', '#F15A24', '#16a34a', '#8b5cf6', '#eab308'];
+    const counts = leads.reduce<Record<string, number>>((result, lead) => {
+      const stage = String(lead.stage || 'Unassigned');
+      result[stage] = (result[stage] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).map(([label, value], index) => ({ label, value, color: colors[index % colors.length] }));
+  }, [leads]);
 
   return <section className="grid gap-5">
     {isSuspended && <Card className="border-rose-200 bg-rose-50 p-4" role="alert"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-rose-900">Your workspace is read-only</p><p className="mt-1 text-sm text-rose-800">Your subscription has ended. Renew to add policies, manage leads, and publish portfolio changes.</p></div><Btn onClick={() => onNavigate('billing')}>Renew subscription</Btn></div></Card>}
@@ -55,6 +78,27 @@ export function AgentDashboard({ profile, subscription, onNavigate }: Props) {
     <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#D39A26]">Agent workspace</p><h2 className="text-2xl font-extrabold text-[#0A4F8A]">Good to see you, {profile.name?.split(' ')[0] || 'Agent'}</h2><p className="mt-1 text-sm text-slate-600">A practical snapshot of your portfolio, pipeline, and next best actions.</p></div><Btn onClick={() => onNavigate('calculator')}>Open quote calculator</Btn></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[['Portfolio premium', npr(premium), 'Recorded policy value', 'blue'], ['Active policies', policies.length, 'Keep renewals close', 'green'], ['Follow-ups due', dueLeads.length, dueLeads.length ? 'Action needed today' : 'Queue is clear', dueLeads.length ? 'amber' : 'slate'], ['Pipeline leads', activeLeads, 'Open opportunities', 'purple']].map(([label, value, hint, tone]) => <Card key={String(label)} className="p-4"><div className="flex items-center justify-between"><p className="text-sm text-slate-500">{label}</p><Badge tone={tone as any}>Live</Badge></div><p className="mt-2 text-2xl font-extrabold text-slate-900">{value}</p><p className="mt-1 text-xs text-slate-500">{hint}</p></Card>)}
+    </div>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <TrendChart
+        title="Premium trend"
+        description="Recorded policies by issue month, last six months."
+        points={monthBuckets.map(({ label, premium: value }) => ({ label, value }))}
+        formatValue={npr}
+      />
+      <BarChart
+        title="Policies issued"
+        description="Monthly count from your policy records."
+        points={monthBuckets.map(({ label, count: value }) => ({ label, value }))}
+      />
+    </div>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <DonutChart title="Lead pipeline" description="Current leads grouped by their recorded stage." slices={leadStages} />
+      <Card className="p-5">
+        <div className="flex items-center justify-between"><h3 className="font-bold">Dashboard updates</h3><Badge tone="blue">Live data</Badge></div>
+        <p className="mt-2 text-sm text-slate-600">Charts reflect the latest policy and lead records available to your account.</p>
+        <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">Premium totals and lead stages update when you add or edit records in your workspace.</p>
+      </Card>
     </div>
     <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
       <Card className="p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">Today&apos;s opportunity signals</h3><p className="mt-1 text-sm text-slate-500">Rule-based prompts from your current records.</p></div><Badge tone="blue">Insights</Badge></div><div className="mt-4 grid gap-2">{signals.map((signal, index) => <div key={signal} className="flex gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#E7F1FA] text-xs font-bold text-[#0A4F8A]">{index + 1}</span><span>{signal}</span></div>)}</div></Card>

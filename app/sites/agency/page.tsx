@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { AuthCard } from '@/components/AuthCard';
-import { Btn, Card, cx } from '@/components/ui';
+import { Btn, Card } from '@/components/ui';
 import { Kanban } from '@/components/agency/Kanban';
 import { Plans } from '@/components/agency/Plans';
 import { Calculator } from '@/components/agency/Calculator';
@@ -20,6 +20,7 @@ import { MarketingKit } from '@/components/agency/MarketingKit';
 import { calculateAgentTitle } from '@/lib/rules';
 import { siteUrl } from '@/lib/brand';
 import { AgentDashboard } from '@/components/agency/AgentDashboard';
+import { PortalSidebar, type PortalNavGroup } from '@/components/PortalSidebar';
 
 const TABS = [
   { k: 'overview', l: 'Dashboard' },
@@ -34,6 +35,13 @@ const TABS = [
   { k: 'portfolio', l: 'Public Portfolio' },
   { k: 'insights', l: 'Insights & Leaderboard' },
   { k: 'feedback', l: 'Feedback' },
+];
+
+const MENU_GROUPS: PortalNavGroup[] = [
+  { label: 'Workspace', items: [{ id: 'overview', label: 'Dashboard' }] },
+  { label: 'Sales & clients', items: [{ id: 'leads', label: 'Leads' }, { id: 'plans', label: 'Plans & Policies' }, { id: 'team', label: 'Team Network & Titles', badge: 'Premium' }] },
+  { label: 'Tools', items: [{ id: 'tdi', label: 'TDI & BDI Calculator', badge: 'Premium' }, { id: 'scheme', label: 'Monthly Schemes', badge: 'Premium' }, { id: 'calendar', label: 'Nepali Calendar' }, { id: 'marketing', label: 'Marketing & Banners' }, { id: 'insights', label: 'Insights & Leaderboard' }] },
+  { label: 'My profile', items: [{ id: 'profile', label: 'Profile & Cadre' }, { id: 'portfolio', label: 'Public Portfolio' }, { id: 'feedback', label: 'Feedback' }] },
 ];
 
 export default function Agency() {
@@ -113,10 +121,6 @@ export default function Agency() {
       site="agency"
       right={
         <div className="flex items-center gap-3">
-          <div className="hidden text-right text-xs sm:block">
-            <span className="block font-bold text-slate-900">{profile.name}</span>
-            <span className="font-semibold text-[#0A4F8A]">{titleInfo.shortName}</span>
-          </div>
           <Btn variant="ghost" onClick={signOut}>
             Log out
           </Btn>
@@ -124,8 +128,8 @@ export default function Agency() {
       }
     >
       <MfaGate>
-        <div className="mx-auto max-w-7xl px-4 py-6">
-          <div className="sticky top-0 z-30 mb-4 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm shadow-sm">
+        <div className="mx-auto max-w-[1500px] px-4 py-6">
+          <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm shadow-sm">
             <span>
               {trialActive
                 ? `Free trial · ${Math.max(
@@ -141,24 +145,23 @@ export default function Agency() {
             </a>
           </div>
 
-          <div className="mb-6 flex flex-wrap gap-2" role="tablist">
-            {TABS.map((x) => (
-              <button
-                key={x.k}
-                role="tab"
-                aria-selected={tab === x.k}
-                onClick={() => setTab(x.k)}
-                className={cx(
-                  'rounded-lg px-4 py-2 text-sm font-semibold transition',
-                  tab === x.k ? 'bg-gold text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-100'
-                )}
-              >
-                {x.l}
-                {x.premium && !premium ? ' (premium)' : ''}
-              </button>
-            ))}
-          </div>
-
+          <div className="flex flex-col gap-5 md:flex-row md:items-start">
+            <PortalSidebar
+              name={profile.name}
+              email={session.user.email}
+              photo={profile.avatar_url}
+              role={titleInfo.shortName || 'Agent'}
+              groups={MENU_GROUPS.map((group) => ({
+                ...group,
+                items: group.items.map((item) => {
+                  const tabInfo = TABS.find((candidate) => candidate.k === item.id);
+                  return tabInfo?.premium && !premium ? { ...item, badge: 'Premium' } : item;
+                }),
+              }))}
+              active={tab}
+              onSelect={setTab}
+            />
+            <div className="min-w-0 flex-1">
           {locked ? (
             <Card className="mx-auto max-w-lg p-8 text-center">
               <h2 className="text-xl font-bold">Premium feature</h2>
@@ -194,6 +197,8 @@ export default function Agency() {
           ) : (
             <AgencyFeedback uid={profile.id} />
           )}
+            </div>
+          </div>
         </div>
       </MfaGate>
     </Shell>

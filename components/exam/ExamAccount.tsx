@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Btn, Card, Field } from '../ui';
+import { AuthCallbackMessage, AuthMethods } from '../AuthMethods';
+import { PhoneOtpForm } from '../PhoneOtpForm';
 
 export function ExamAccount() {
   const router = useRouter();
@@ -12,6 +14,7 @@ export function ExamAccount() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'password' | 'phone' | 'social'>('password');
 
   const set = (key: Exclude<keyof typeof form, 'whatsappOptIn'>) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -23,25 +26,35 @@ export function ExamAccount() {
     setMessage('');
     setIsError(false);
 
-    const result = mode === 'register'
-      ? await supabase.auth.signUp({
-          email: form.email.trim(),
-          password: form.password,
-          options: {
-            data: {
-              name: form.name.trim(),
-              phone: form.phone.trim(),
-              portal_type: 'exam_candidate',
-              whatsapp_opt_in: form.whatsappOptIn,
+    let result;
+    try {
+      result = mode === 'register'
+        ? await supabase.auth.signUp({
+            email: form.email.trim(),
+            password: form.password,
+            options: {
+              emailRedirectTo: new URL('/api/auth/callback?portal=exam', window.location.origin).toString(),
+              data: {
+                name: form.name.trim(),
+                phone: form.phone.trim(),
+                portal_type: 'exam_candidate',
+                whatsapp_opt_in: form.whatsappOptIn,
+              },
             },
-          },
-        })
-      : await supabase.auth.signInWithPassword({
-          email: form.email.trim(),
-          password: form.password,
-        });
+          })
+        : await supabase.auth.signInWithPassword({
+            email: form.email.trim(),
+            password: form.password,
+          });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not complete authentication.');
+      setIsError(true);
+      setBusy(false);
+      return;
+    } finally {
+      setBusy(false);
+    }
 
-    setBusy(false);
     if (result.error) {
       setMessage(result.error.message);
       setIsError(true);
@@ -74,7 +87,31 @@ export function ExamAccount() {
       <p className="mt-2 text-sm text-slate-600">
         Create a candidate account, submit payment, and sign in to start an exam. Agent accounts cannot start exams.
       </p>
-      <form onSubmit={submit} className="mt-5 grid gap-4">
+      <AuthCallbackMessage />
+      {mode === 'login' && (
+        <div className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+          {([
+            ['password', 'Email & Password'],
+            ['phone', 'Phone / SMS / WhatsApp'],
+            ['social', 'Social / Passkey'],
+          ] as const).map(([method, label]) => (
+            <button
+              key={method}
+              type="button"
+              onClick={() => {
+                setAuthMethod(method);
+                setMessage('');
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                authMethod === method ? 'bg-[#0A4F8A] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {(mode === 'register' || authMethod === 'password') && <form onSubmit={submit} className="mt-5 grid gap-4">
         {mode === 'register' && (
           <>
             <Field label="Full name" required maxLength={100} value={form.name} onChange={set('name')} />
@@ -94,12 +131,23 @@ export function ExamAccount() {
         <Field label="Password" type="password" required minLength={8} value={form.password} onChange={set('password')} />
         {message && <p role={isError ? 'alert' : 'status'} className={`text-sm ${isError ? 'text-red-700' : 'text-slate-700'}`}>{message}</p>}
         <Btn type="submit" disabled={busy}>{busy ? 'Please wait...' : mode === 'register' ? 'Create candidate account' : 'Log in'}</Btn>
-      </form>
+      </form>}
+      {mode === 'login' && authMethod === 'phone' && (
+        <div className="mt-5">
+          <PhoneOtpForm portal="exam" name={form.name} />
+        </div>
+      )}
+      {mode === 'login' && authMethod === 'social' && (
+        <div className="mt-5">
+          <AuthMethods portal="exam" />
+        </div>
+      )}
       <button
         type="button"
         className="mt-4 text-sm font-semibold text-[#0A4F8A] underline"
         onClick={() => {
           setMode(mode === 'register' ? 'login' : 'register');
+          setAuthMethod('password');
           setMessage('');
         }}
       >

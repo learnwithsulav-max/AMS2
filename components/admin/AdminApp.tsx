@@ -9,14 +9,22 @@ import { schemeTone } from '../agency/Schemes';
 import { AuthCard } from '../AuthCard';
 import { MfaGate } from '../MfaGate';
 import { Shell } from '../Shell';
-import { Badge, Btn, Card, Field, cx } from '../ui';
+import { Badge, Btn, Card, Field } from '../ui';
 import { DataPager, DataTable } from './DataTable';
 import { QuestionImporter } from './QuestionImporter';
 import { MaskedPhone, maskPhone } from '@/components/MaskedPhone';
+import { PortalSidebar, type PortalNavGroup } from '@/components/PortalSidebar';
+import { DonutChart, TrendChart } from '@/components/DashboardCharts';
 
 const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'billing_orders', 'question_reports', 'agency_feedback', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
-const TABS = ['Overview', 'Agents', 'Subscriptions', 'Exams', 'Question bank', 'Feedback inbox', 'Broadcast', 'System health', 'Question reports', 'Agent feedback', 'Exam passes', 'Billing queue', 'Leads', 'Public leads', 'Reviews', 'Finance', 'Schemes', 'Configuration', 'Logs'];
+const ADMIN_MENU: PortalNavGroup[] = [
+  { label: 'Workspace', items: [{ id: 'Overview', label: 'Dashboard' }, { id: 'System health', label: 'System health' }] },
+  { label: 'People & sales', items: [{ id: 'Agents', label: 'Agents' }, { id: 'Subscriptions', label: 'Subscriptions' }, { id: 'Leads', label: 'Agent leads' }, { id: 'Public leads', label: 'Public leads' }, { id: 'Reviews', label: 'Reviews' }] },
+  { label: 'Exams', items: [{ id: 'Exams', label: 'Exam results' }, { id: 'Exam passes', label: 'Exam passes' }, { id: 'Question bank', label: 'Question bank' }, { id: 'Question reports', label: 'Question reports' }] },
+  { label: 'Operations', items: [{ id: 'Billing queue', label: 'Billing queue' }, { id: 'Broadcast', label: 'Broadcast' }, { id: 'Feedback inbox', label: 'Feedback inbox' }, { id: 'Agent feedback', label: 'Agent feedback' }] },
+  { label: 'Finance & system', items: [{ id: 'Finance', label: 'Finance' }, { id: 'Schemes', label: 'Schemes' }, { id: 'Configuration', label: 'Configuration' }, { id: 'Logs', label: 'Activity logs' }] },
+];
 
 export default function AdminApp() {
   const { session, profile, loading, signOut } = useAuth();
@@ -28,10 +36,10 @@ export default function AdminApp() {
   if (loading) return <Shell site="admin"><p className="p-10 text-center text-slate-500">Loading...</p></Shell>;
   if (!session) return <Shell site="admin"><AuthCard title="Master admin" allowRegister={false} /></Shell>;
   if (profile?.role !== 'admin') return <Shell site="admin" right={out}><Card className="mx-auto my-16 max-w-md p-8 text-center"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-2 text-slate-600">This portal is for the master admin only.</p></Card></Shell>;
-  return <Shell site="admin" right={out}><MfaGate><Dashboard /></MfaGate></Shell>;
+  return <Shell site="admin" right={out}><MfaGate><Dashboard profile={profile} email={session.user.email} /></MfaGate></Shell>;
 }
 
-function Dashboard() {
+function Dashboard({ profile, email }: { profile: any; email?: string }) {
   const [tab, setTab] = useState('Overview');
   const [d, setD] = useState<Record<string, any[]>>({});
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -104,21 +112,37 @@ function Dashboard() {
   const dueLeads = L.filter((lead) => lead.follow_up_date && lead.follow_up_date <= today() && !String(lead.stage || '').startsWith('Closed'));
   const inactiveAgents = P.filter((agent) => agent.status && agent.status !== 'active');
   const leaderboard = P.map((agent) => ({ ...agent, policyCount: POL.filter((policy) => policy.agent_id === agent.id).length, premium: POL.filter((policy) => policy.agent_id === agent.id).reduce((sum, policy) => sum + Number(policy.premium || 0), 0) })).sort((a, b) => b.premium - a.premium).slice(0, 5);
+  const monthlyPolicies = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, index) => {
+      const month = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+      const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+      const rows = POL.filter((policy) => String(policy.issue_date || '').slice(0, 7) === key);
+      return {
+        label: month.toLocaleString('en', { month: 'short' }),
+        value: rows.reduce((sum, policy) => sum + Number(policy.premium || 0), 0),
+      };
+    });
+  }, [POL]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="mx-auto max-w-[1500px] px-4 py-6">
+      <div className="flex flex-col gap-5 md:flex-row md:items-start">
+      <PortalSidebar
+        name={profile.name}
+        email={email}
+        photo={profile.avatar_url}
+        role="Administrator"
+        groups={ADMIN_MENU}
+        active={tab}
+        onSelect={setTab}
+      />
+      <div className="min-w-0 flex-1">
       {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
       {partialTables.length > 0 && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         Showing the first {PAGE_SIZE} records for large datasets. Use search and pagination in the relevant tables; overview totals use the loaded records.
       </p>}
       {loading && !Object.keys(d).length && <p role="status" className="mb-4 text-sm text-slate-500">Loading admin data...</p>}
-      <div className="no-print mb-6 flex flex-wrap gap-2" role="tablist">
-        {TABS.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cx('rounded-lg px-4 py-2 text-sm font-semibold', tab === t ? 'bg-gold text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>{t}</button>
-        ))}
-      </div>
-
       {tab === 'Overview' && (
         <div className="grid gap-6">
           <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#D39A26]">Operations overview</p><h1 className="text-2xl font-extrabold text-[#0A4F8A]">System command center</h1><p className="mt-1 text-sm text-slate-600">Live records across agents, policies, exams, billing, and service queues.</p></div><Badge tone="blue">{from} → {to}</Badge></div>
@@ -130,6 +154,14 @@ function Dashboard() {
           <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <Card className="p-5"><div className="flex items-center justify-between"><div><h2 className="font-bold">Agent performance</h2><p className="text-sm text-slate-500">Ranked by loaded policy premium.</p></div><Badge tone="gold">Top 5</Badge></div><div className="mt-4 grid gap-3">{leaderboard.map((agent, index) => <div key={agent.id} className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-sm"><span className="font-bold text-slate-400">0{index + 1}</span><div><div className="flex justify-between gap-2"><b>{agent.name || agent.email}</b><span>{npr(agent.premium)}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0A4F8A]" style={{ width: `${leaderboard[0]?.premium ? Math.max(8, Math.round((agent.premium / leaderboard[0].premium) * 100)) : 0}%` }} /></div><p className="mt-1 text-xs text-slate-500">{agent.policyCount} policies</p></div></div>)}{!leaderboard.length && <p className="text-sm text-slate-500">Agent performance will appear as policy records are added.</p>}</div></Card>
             <Card className="p-5"><div className="flex items-center justify-between"><h2 className="font-bold">Insight queue</h2><Badge tone={pendingApprovals.length + dueLeads.length ? 'amber' : 'green'}>{pendingApprovals.length + dueLeads.length}</Badge></div><div className="mt-3 grid gap-2 text-sm"><button className="flex justify-between rounded-lg bg-amber-50 p-3 text-left" onClick={() => setTab('Billing queue')}><span>Pending approvals</span><b>{pendingApprovals.length}</b></button><button className="flex justify-between rounded-lg bg-amber-50 p-3 text-left" onClick={() => setTab('Leads')}><span>Follow-ups due</span><b>{dueLeads.length}</b></button><button className="flex justify-between rounded-lg bg-slate-50 p-3 text-left" onClick={() => setTab('Agents')}><span>Inactive agents</span><b>{inactiveAgents.length}</b></button><div className="rounded-lg bg-emerald-50 p-3 text-emerald-800">{partialTables.length ? `${partialTables.length} large tables need review in their detailed tabs.` : 'All overview datasets are within the loaded page window.'}</div></div></Card>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <TrendChart title="Premium by month" description="Policy premiums by issue month from loaded records." points={monthlyPolicies} formatValue={npr} />
+            <DonutChart title="Exam outcomes" description="Submitted attempts grouped by result." slices={[
+              { label: 'Passed', value: done.filter((attempt) => attempt.passed).length, color: '#16a34a' },
+              { label: 'Not passed', value: done.filter((attempt) => !attempt.passed).length, color: '#F15A24' },
+              { label: 'In progress', value: A.length - done.length, color: '#0A4F8A' },
+            ]} />
           </div>
           <WorkflowBoard
             policies={POL}
@@ -235,6 +267,8 @@ function Dashboard() {
         { k: 'created_at', h: 'Time', render: (r) => new Date(r.created_at).toLocaleString() }, { k: 'actor', h: 'Who' }, { k: 'actor_id', h: 'Admin ID' }, { k: 'action', h: 'Action' },
         { k: 'meta', h: 'Details', render: (r) => JSON.stringify(r.meta || {}) },
       ]} />}
+      </div>
+      </div>
     </div>
   );
 }

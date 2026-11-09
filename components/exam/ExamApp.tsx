@@ -7,8 +7,15 @@ import { downloadPdf, downloadPng, renderCertificate } from './certificate';
 import { PassPurchase } from './PassPurchase';
 import { ExamAccount } from './ExamAccount';
 import { useAuth } from '@/lib/auth';
+import { PasskeySetup } from '../PasskeySetup';
+import { PortalSidebar, type PortalNavGroup } from '../PortalSidebar';
+import { BarChart, DonutChart } from '../DashboardCharts';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
+const EXAM_MENU: PortalNavGroup[] = [
+  { label: 'Workspace', items: [{ id: 'exam-overview', label: 'Exam dashboard' }, { id: 'exam-pass', label: 'Pass & payment' }] },
+  { label: 'Account', items: [{ id: 'exam-history', label: 'Exam history' }, { id: 'exam-security', label: 'Passkey & security' }] },
+];
 const read = (k: string, d: any) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? d; } catch { return d; } };
 
 export default function ExamApp() {
@@ -27,6 +34,7 @@ export default function ExamApp() {
   const [saved, setSaved] = useState<any>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [examMenu, setExamMenu] = useState('exam-overview');
   const offset = useRef(0);
   const submitting = useRef(false);
 
@@ -143,6 +151,14 @@ export default function ExamApp() {
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
   }, [stage]);
 
+  const completedHistory = history.filter((item) =>
+    Number.isFinite(Number(item.score)) && Number.isFinite(Number(item.max)) && Number(item.max) > 0
+  );
+  const recentScores = completedHistory.slice(0, 6).reverse().map((item, index) => ({
+    label: `${new Date(item.at).toLocaleDateString('en', { month: 'short', day: 'numeric' })} #${index + 1}`,
+    value: Math.round(Number(item.score) / Number(item.max) * 100),
+  }));
+
   /* ---------- intro ---------- */
   if (stage === 'intro') {
     if (loading) return <p className="p-10 text-center text-slate-500">Loading candidate account...</p>;
@@ -158,8 +174,21 @@ export default function ExamApp() {
       );
     }
       return (
-        <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10">
-          <Card className="p-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-10 md:flex-row md:items-start">
+          <PortalSidebar
+            name={profile.name}
+            email={session.user.email}
+            photo={profile.avatar_url}
+            role="Exam candidate"
+            groups={EXAM_MENU}
+            active={examMenu}
+            onSelect={(id) => {
+              setExamMenu(id);
+              document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
+          <div className="grid min-w-0 flex-1 gap-6">
+          <Card id="exam-overview" className="scroll-mt-4 p-6">
             <h1 className="text-2xl font-extrabold">{t('exam_login_title')}</h1>
             <p className="mt-2 text-slate-600">{t('exam_rules')}</p>
             <p className="mt-2 text-sm text-slate-600">Signed in as <b>{profile.name || session.user.email}</b>.</p>
@@ -181,12 +210,22 @@ export default function ExamApp() {
               <Btn type="submit" disabled={busy || !access?.active}>{busy ? 'Starting...' : t('start')}</Btn>
             </form>
           </Card>
-          <PassPurchase
-            accessToken={session.access_token}
-            candidateName={profile.name || session.user.email || 'Candidate'}
-            candidatePhone={profile.phone || ''}
-          />
-          <Card className="p-6">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <BarChart title="Recent exam scores" description="Score percentage from your latest completed attempts." points={recentScores} />
+            <DonutChart title="Exam outcomes" description="Completed attempts grouped by result." slices={[
+              { label: 'Passed', value: completedHistory.filter((item) => item.passed).length, color: '#16a34a' },
+              { label: 'Not passed', value: completedHistory.filter((item) => !item.passed).length, color: '#F15A24' },
+            ]} />
+          </div>
+          <div id="exam-pass" className="scroll-mt-4">
+            <PassPurchase
+              accessToken={session.access_token}
+              candidateName={profile.name || session.user.email || 'Candidate'}
+              candidatePhone={profile.phone || ''}
+            />
+          </div>
+          <div id="exam-security" className="scroll-mt-4"><PasskeySetup /></div>
+          <Card id="exam-history" className="scroll-mt-4 p-6">
             <h2 className="font-bold">{t('history')}</h2>
             <ul className="mt-3 grid gap-2 text-sm">
               {history.map((h, i) => (
@@ -203,6 +242,7 @@ export default function ExamApp() {
               {!history.length && <li className="text-slate-500">-</li>}
             </ul>
           </Card>
+          </div>
         </div>
       );
   }

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { uploadAvatar } from '@/lib/auth';
 import { Btn, Card, Field } from './ui';
 import { ALL_INSURANCE_COMPANIES, POPULAR_NEPALI_BRANCHES } from '@/lib/nepali-companies';
+import { AuthCallbackMessage } from './AuthMethods';
 
 export function AuthCard({ title, allowRegister = true }: { title: string; allowRegister?: boolean }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -15,41 +16,24 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
   const [msg, setMsg] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [otpChannel, setOtpChannel] = useState<'sms' | 'whatsapp'>('sms');
 
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
 
   // Social OAuth Handler
-  async function handleOAuth(provider: 'google' | 'facebook' | 'github') {
+  async function handleOAuth(provider: 'google' | 'facebook' | 'custom:tiktok' | 'custom:instagram') {
     setBusy(true);
     setMsg('');
     try {
-      if (provider === 'google') {
-        try {
-          const { signInWithGoogle } = await import('@/lib/firebase');
-          await signInWithGoogle();
-          setMsg('Successfully signed in with Google!');
-          setBusy(false);
-          return;
-        } catch (fbErr: any) {
-          // If popup is closed or user cancels, or fallback to standard OAuth
-          if (fbErr?.code === 'auth/popup-closed-by-user') {
-            setMsg('Google sign-in popup was closed.');
-            setBusy(false);
-            return;
-          }
-          console.warn('Firebase Google Auth fallback:', fbErr);
-        }
-      }
-
+      const callback = new URL('/api/auth/callback', window.location.origin);
+      callback.searchParams.set('portal', 'agency');
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
-        },
+        options: { redirectTo: callback.toString() },
       });
       if (error) setMsg(error.message);
-    } catch (e: any) {
-      setMsg(e.message || `Could not sign in with ${provider}`);
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : `Could not sign in with ${provider}`);
     } finally {
       setBusy(false);
     }
@@ -60,19 +44,14 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
     setBusy(true);
     setMsg('');
     try {
-      if (!window.PublicKeyCredential) {
-        setMsg('Passkeys/biometric authentication is not supported on this browser/device.');
-        setBusy(false);
-        return;
+      if (!window.isSecureContext || !window.PublicKeyCredential) {
+        throw new Error('Passkeys require a supported browser and a secure HTTPS connection.');
       }
-      setMsg('Biometric authentication prompt initiated. Follow your device security prompt...');
-      // Simulated WebAuthn check
-      setTimeout(() => {
-        setMsg('Device biometrics verified. Connecting your session...');
-        setBusy(false);
-      }, 1000);
-    } catch (e: any) {
-      setMsg(e.message || 'Passkey authentication failed.');
+      const { error } = await supabase.auth.signInWithPasskey();
+      if (error) setMsg(error.message);
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : 'Passkey authentication failed.');
+    } finally {
       setBusy(false);
     }
   }
@@ -84,21 +63,23 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
     setMsg('');
 
     if (!otpSent) {
-      const phone = f.phone?.trim();
-      if (!phone || phone.length < 9) {
+      const digits = String(f.phone || '').replace(/\D/g, '');
+      const local = digits.startsWith('977') ? digits.slice(3) : digits.startsWith('0') ? digits.slice(1) : digits;
+      if (!/^9\d{9}$/.test(local)) {
         setMsg('Enter a valid mobile number (e.g. 9857053594).');
         setBusy(false);
         return;
       }
-      const formattedPhone = phone.startsWith('+') ? phone : `+977${phone.replace(/\D/g, '')}`;
+      const formattedPhone = `+977${local}`;
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
+        options: { channel: otpChannel, data: { name: f.name || '', portal_type: 'agent' } },
       });
       if (error) {
         setMsg(error.message);
       } else {
         setOtpSent(true);
-        setMsg(`6-digit verification code sent to ${formattedPhone}. Enter the code below.`);
+        setMsg(`Verification code requested for ${formattedPhone}. Enter the code below.`);
       }
     } else {
       const formattedPhone = f.phone.startsWith('+') ? f.phone : `+977${f.phone.replace(/\D/g, '')}`;
@@ -110,7 +91,16 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
       if (error) {
         setMsg(error.message);
       } else {
-        setMsg('Phone authentication successful!');
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: profile, error: profileError } = user
+          ? await supabase.from('profiles').select('portal_type').eq('id', user.id).maybeSingle()
+          : { data: null, error: null };
+        if (profileError || !profile || profile.portal_type !== 'agent') {
+          await supabase.auth.signOut();
+          setMsg(profileError?.message || 'This phone account belongs to a different portal.');
+        } else {
+          setMsg('Phone verified. You are signed in.');
+        }
       }
     }
     setBusy(false);
@@ -122,17 +112,21 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
     setBusy(true);
     setMsg('');
 
-    if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: f.email,
-        password: f.password,
-      });
-      if (error) setMsg(error.message);
-    } else {
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: f.email.trim(),
+          password: f.password,
+        });
+        if (error) setMsg(error.message);
+      } else {
+      const callback = new URL('/api/auth/callback', window.location.origin);
+      callback.searchParams.set('portal', 'agency');
       const { data, error } = await supabase.auth.signUp({
-        email: f.email,
+        email: f.email.trim(),
         password: f.password,
         options: {
+          emailRedirectTo: callback.toString(),
           data: {
             name: f.name,
             phone: f.phone,
@@ -164,8 +158,12 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
         setMode('login');
         setMsg('Account created. Please log in to open your agent portal.');
       }
+      }
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : 'Could not complete authentication.');
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
@@ -177,6 +175,7 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
             ? 'Sign in to access your agent portal, pipeline, and insurance tools.'
             : 'Register your official advisor profile with PAN and license details.'}
         </p>
+        <AuthCallbackMessage />
 
         {/* Auth Method Switcher for Login */}
         {mode === 'login' && (
@@ -207,7 +206,7 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              Phone / SMS
+              Phone / SMS / WhatsApp
             </button>
             <button
               type="button"
@@ -221,7 +220,7 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              Google / Passkey / Social
+              Social / Passkey
             </button>
           </div>
         )}
@@ -388,9 +387,23 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
               disabled={otpSent}
             />
 
+            {!otpSent && (
+              <label className="grid gap-1 text-sm font-medium">
+                Send code by
+                <select
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  value={otpChannel}
+                  onChange={(event) => setOtpChannel(event.target.value as 'sms' | 'whatsapp')}
+                >
+                  <option value="sms">SMS</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </label>
+            )}
+
             {otpSent && (
               <Field
-                label="6-Digit SMS Verification Code"
+                label="6-Digit Verification Code"
                 type="text"
                 required
                 maxLength={6}
@@ -407,7 +420,7 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
             )}
 
             <Btn type="submit" disabled={busy}>
-              {busy ? 'Verifying...' : otpSent ? 'Confirm & Sign In' : 'Send SMS OTP'}
+              {busy ? 'Verifying...' : otpSent ? 'Confirm & Sign In' : 'Send verification code'}
             </Btn>
 
             {otpSent && (
@@ -466,18 +479,21 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
 
             <button
               type="button"
-              onClick={() => handleOAuth('github')}
+              onClick={() => handleOAuth('custom:tiktok')}
               disabled={busy}
               className="flex w-full items-center justify-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 shadow-sm"
             >
-              <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                />
-              </svg>
-              Continue with GitHub
+              <span className="text-xl font-black" aria-hidden="true">♪</span>
+              Continue with TikTok
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOAuth('custom:instagram')}
+              disabled={busy}
+              className="flex w-full items-center justify-center gap-3 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm font-semibold text-pink-900 transition hover:bg-pink-100 shadow-sm"
+            >
+              Continue with Instagram
             </button>
 
             <button
