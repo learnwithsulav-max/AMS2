@@ -1,6 +1,7 @@
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n';
 import type { Viewport } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata = {
   title: 'Learn With Sulav',
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <I18nProvider>{children}</I18nProvider>
+        <Analytics />
       </body>
     </html>
   );
