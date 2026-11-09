@@ -1,0 +1,98 @@
+[debug] [2026-11-09T10:54:16.827Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.833Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.834Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:16.839Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:16.840Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:16.879Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.880Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.880Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:16.881Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:16.881Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:16.888Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.888Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.888Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:16.888Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:16.889Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:16.893Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.894Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:16.894Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:16.894Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:16.894Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.000Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.000Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.000Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:17.001Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:17.001Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.018Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.018Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.018Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:17.019Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:17.019Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.025Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.025Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.025Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:17.026Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:17.026Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.029Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.030Z] Checked if tokens are valid: false, expires at: 1794216101499
+[debug] [2026-11-09T10:54:17.030Z] > refreshing access token with scopes: []
+[debug] [2026-11-09T10:54:17.030Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-11-09T10:54:17.030Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.223Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.223Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.272Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com [none]
+[debug] [2026-11-09T10:54:17.273Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.309Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.309Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.347Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com [none]
+[debug] [2026-11-09T10:54:17.347Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.350Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.351Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.399Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ [none]
+[debug] [2026-11-09T10:54:17.399Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.409Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.410Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.444Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com [none]
+[debug] [2026-11-09T10:54:17.445Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.462Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.463Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.497Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ [none]
+[debug] [2026-11-09T10:54:17.498Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.515Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.516Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.552Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com [none]
+[debug] [2026-11-09T10:54:17.552Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.555Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.555Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.612Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com [none]
+[debug] [2026-11-09T10:54:17.612Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:17.633Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-11-09T10:54:17.634Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-11-09T10:54:17.672Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com [none]
+[debug] [2026-11-09T10:54:17.672Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com x-goog-quota-user=projects/learn-with-sulav
+[debug] [2026-11-09T10:54:19.221Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com 200
+[debug] [2026-11-09T10:54:19.222Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com [omitted]
+[debug] [2026-11-09T10:54:19.302Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com 200
+[debug] [2026-11-09T10:54:19.302Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com [omitted]
+[debug] [2026-11-09T10:54:19.462Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com 403
+[debug] [2026-11-09T10:54:19.462Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com [omitted]
+[debug] [2026-11-09T10:54:19.465Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com 403
+[debug] [2026-11-09T10:54:19.466Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseio.com [omitted]
+[debug] [2026-11-09T10:54:19.676Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ 200
+[debug] [2026-11-09T10:54:19.676Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ [omitted]
+[debug] [2026-11-09T10:54:19.677Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ 200
+[debug] [2026-11-09T10:54:19.677Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/ [omitted]
+[debug] [2026-11-09T10:54:20.045Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-09T10:54:20.046Z] > authorizing via signed-in user (learnwithsulav@gmail.com)
+[debug] [2026-11-09T10:54:20.132Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-09T10:54:20.132Z] > authorizing via signed-in user (learnwithsulav@gmail.com)
+[debug] [2026-11-09T10:54:20.178Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-09T10:54:20.179Z] > authorizing via signed-in user (learnwithsulav@gmail.com)
+[debug] [2026-11-09T10:54:20.231Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-09T10:54:20.232Z] > authorizing via signed-in user (learnwithsulav@gmail.com)
+[debug] [2026-11-09T10:54:20.232Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-09T10:54:20.232Z] > authorizing via signed-in user (learnwithsulav@gmail.com)
+[debug] [2026-11-09T10:54:20.966Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com 200
+[debug] [2026-11-09T10:54:20.966Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebasecrashlytics.googleapis.com [omitted]
+[debug] [2026-11-09T10:54:21.035Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com 200
+[debug] [2026-11-09T10:54:21.035Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/learn-with-sulav/services/firebaseapphosting.googleapis.com [omitted]
