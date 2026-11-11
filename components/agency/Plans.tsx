@@ -285,7 +285,7 @@ export function Plans({ uid }: { uid: string }) {
               {!rows.length && (
                 <tr>
                   <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
-                    No policies entered yet. Click "+ Add Policy" to record your client policies.
+                    No policies entered yet. Click &quot;+ Add Policy&quot; to record your client policies.
                   </td>
                 </tr>
               )}
