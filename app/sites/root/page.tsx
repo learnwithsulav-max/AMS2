@@ -6,6 +6,7 @@ import { Card, LinkBtn } from '@/components/ui';
 import { useI18n } from '@/lib/i18n';
 import { BRAND, siteUrl } from '@/lib/brand';
 import { ContactForm } from '@/components/ContactForm';
+import { AGENCY_PACKAGES, EXAM_PACKAGES } from '@/lib/packages';
 
 const agentTools = [
   { icon: '◫', title: { en: 'Lead and policy board', ne: 'लिड तथा पोलिसी बोर्ड' }, body: { en: 'Keep follow-ups, policy records and renewals organized in one workspace.', ne: 'फलोअप, पोलिसी र नवीकरणलाई एउटै कार्यक्षेत्रमा व्यवस्थित राख्नुहोस्।' } },
@@ -75,10 +76,55 @@ export default function Landing() {
         <a className="mt-6 inline-flex font-bold text-[#0A4F8A] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4" href={siteUrl('agency')}>{lang === 'en' ? 'See the Agency Portal and create an account →' : 'एजेन्सी पोर्टल हेर्नुहोस् र खाता बनाउनुहोस् →'}</a>
       </section>
 
-      <section className="bg-[#F4F8FC] py-14 sm:py-16">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 md:flex-row md:items-center md:justify-between">
-          <div className="max-w-2xl"><p className="text-sm font-bold uppercase tracking-wide text-[#0A4F8A]">{lang === 'en' ? 'For exam candidates' : 'परीक्षार्थीका लागि'}</p><h2 className="mt-2 text-3xl font-extrabold">{lang === 'en' ? 'Prepare at your own pace.' : 'आफ्नो गतिमा तयारी गर्नुहोस्।'}</h2><p className="mt-3 leading-relaxed text-slate-600">{lang === 'en' ? 'Practice with a timed 50-question exam. Passes start from Rs 99; choose a package and submit the payment voucher inside the portal. Your exam unlocks after approval.' : 'समय सीमासहितको ५० प्रश्नको परीक्षामा अभ्यास गर्नुहोस्। पास रु ९९ देखि सुरु हुन्छ; पोर्टलभित्र प्याकेज छानेर भुक्तानी भौचर बुझाउनुहोस्। स्वीकृतिपछि परीक्षा खुल्छ।'}</p><p className="mt-2 text-sm font-semibold text-slate-700">{lang === 'en' ? '90 minutes per attempt · 50 questions' : 'प्रति प्रयास ९० मिनेट · ५० प्रश्न'}</p></div>
-          <LinkBtn href={siteUrl('exam')} variant="cta">{lang === 'en' ? 'Open Exam Practice' : 'परीक्षा अभ्यास खोल्नुहोस्'}</LinkBtn>
+      <section id="packages" className="bg-[#F4F8FC] py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-wide text-[#0A4F8A]">{lang === 'en' ? 'Plans and access' : 'योजना र पहुँच'}</p>
+            <h2 className="mt-2 text-3xl font-extrabold">{lang === 'en' ? 'Choose the package that fits your goals.' : 'तपाईंको लक्ष्यअनुसार प्याकेज छान्नुहोस्।'}</h2>
+            <p className="mt-3 leading-relaxed text-slate-600">{lang === 'en' ? 'See what is included and how long each package keeps your access active.' : 'हरेक प्याकेजमा के समावेश छ र कति समय पहुँच सक्रिय रहन्छ हेर्नुहोस्।'}</p>
+          </div>
+
+          <h3 className="mt-10 text-xl font-bold text-navy">{lang === 'en' ? 'Agency Portal' : 'एजेन्सी पोर्टल'}</h3>
+          <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {AGENCY_PACKAGES.map((plan) => (
+              <Card key={plan.code} className={`relative flex h-full flex-col border p-6 ${plan.featured ? 'border-[#F15A24] shadow-lg ring-1 ring-[#F15A24]' : 'border-slate-200'}`}>
+                {plan.featured && <span className="absolute right-4 top-4 rounded-full bg-[#F15A24] px-3 py-1 text-xs font-bold text-white">{lang === 'en' ? 'Best value' : 'उत्तम मूल्य'}</span>}
+                <h4 className="pr-20 text-xl font-extrabold text-[#0A4F8A]">{text(plan.name)}</h4>
+                <p className="mt-2 text-3xl font-black text-slate-900">{plan.amount ? `Rs ${plan.amount}` : (lang === 'en' ? 'Free' : 'निःशुल्क')}<span className="ml-2 text-sm font-medium text-slate-500">/ {plan.days} {lang === 'en' ? 'days' : 'दिन'}</span></p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{text(plan.summary)}</p>
+                <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
+                  {plan.features.map((feature) => <li key={feature.en} className="flex gap-2"><span className="font-bold text-emerald-700" aria-hidden="true">✓</span><span>{text(feature)}</span></li>)}
+                </ul>
+                <a href={plan.code === 'agency_trial' ? siteUrl('agency') : `${siteUrl('agency')}/billing?package=${plan.code}`} className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#0A4F8A] px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-[#083d6b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A4F8A]">
+                  {plan.code === 'agency_trial' ? (lang === 'en' ? 'Start free trial' : 'निःशुल्क परीक्षण सुरु गर्नुहोस्') : (lang === 'en' ? `Choose ${text(plan.name)}` : `${text(plan.name)} छान्नुहोस्`)}
+                </a>
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-3xl">
+              <h3 className="text-xl font-bold text-navy">{lang === 'en' ? 'Exam Practice' : 'परीक्षा अभ्यास'}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{lang === 'en' ? 'Each attempt has 50 questions and a 90-minute time limit. Approved payment activates the selected pass.' : 'हरेक प्रयासमा ५० प्रश्न र ९० मिनेटको समय हुन्छ। भुक्तानी स्वीकृत भएपछि छानिएको पास सक्रिय हुन्छ।'}</p>
+            </div>
+            <LinkBtn href={siteUrl('exam')} variant="cta">{lang === 'en' ? 'Open Exam Practice' : 'परीक्षा अभ्यास खोल्नुहोस्'}</LinkBtn>
+          </div>
+          <div className="mt-4 grid gap-5 md:grid-cols-3">
+            {EXAM_PACKAGES.map((plan) => (
+              <Card key={plan.code} className={`relative flex h-full flex-col border p-6 ${plan.featured ? 'border-[#F15A24] shadow-lg ring-1 ring-[#F15A24]' : 'border-slate-200'}`}>
+                {plan.featured && <span className="absolute right-4 top-4 rounded-full bg-[#F15A24] px-3 py-1 text-xs font-bold text-white">{lang === 'en' ? 'Best value' : 'उत्तम मूल्य'}</span>}
+                <h4 className="pr-20 text-xl font-extrabold text-[#0A4F8A]">{text(plan.name)}</h4>
+                <p className="mt-2 text-3xl font-black text-slate-900">Rs {plan.amount}<span className="ml-2 text-sm font-medium text-slate-500">/ {plan.days} {lang === 'en' ? 'days' : 'दिन'}</span></p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{text(plan.summary)}</p>
+                <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
+                  {plan.features.map((feature) => <li key={feature.en} className="flex gap-2"><span className="font-bold text-emerald-700" aria-hidden="true">✓</span><span>{text(feature)}</span></li>)}
+                </ul>
+                <a href={`${siteUrl('exam')}?package=${plan.code}`} className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#0A4F8A] px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-[#083d6b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A4F8A]">
+                  {lang === 'en' ? 'Choose this pass' : 'यो पास छान्नुहोस्'}
+                </a>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 

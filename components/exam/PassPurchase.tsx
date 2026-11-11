@@ -5,13 +5,9 @@ import { Card, Btn, Field } from '../ui';
 import { jsPDF } from 'jspdf';
 import { BRAND } from '@/lib/brand';
 import { startGatewayCheckout, type GatewayProvider } from '@/lib/billing-checkout';
+import { EXAM_PACKAGES } from '@/lib/packages';
 
 const CLAIM_KEY = 'lws_exam_package_claim';
-const PAYMENTS = [
-  { code: 'exam_weekly', name: 'Weekly Pass', amount: 99, days: 7, detail: 'Quick revision and unlimited mock practice.' },
-  { code: 'exam_half_month', name: 'Half-Month Pass', amount: 199, days: 15, detail: 'Full question bank with bilingual support.' },
-  { code: 'exam_pro_month', name: 'Pro Monthly Pass', amount: 250, days: 30, detail: 'Analytics, answer explanations and priority updates.', best: true },
-];
 
 type Claim = { orderId: string };
 
@@ -34,6 +30,13 @@ export function PassPurchase({
   const [orderError, setOrderError] = useState('');
   const [orderChecking, setOrderChecking] = useState(false);
   const paymentForm = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const packageCode = new URLSearchParams(window.location.search).get('package');
+    if (EXAM_PACKAGES.some((item) => item.code === packageCode)) {
+      setForm((current) => ({ ...current, packageCode: packageCode! }));
+    }
+  }, []);
 
   const sync = useCallback(
     async (c: Claim) => {
@@ -247,7 +250,7 @@ export function PassPurchase({
     pdf.save(`LWS-Exam-Pass-Receipt-${order?.id || 'pass'}.pdf`);
   }
 
-  const selected = PAYMENTS.find((p) => p.code === form.packageCode)!;
+  const selected = EXAM_PACKAGES.find((p) => p.code === form.packageCode)!;
   const canSubmitNewVoucher = !claim || order?.status === 'rejected';
 
   function selectPackage(packageCode: string) {
@@ -273,7 +276,7 @@ export function PassPurchase({
   return (
     <section className="grid gap-4 md:col-span-2" aria-label="Exam practice pass packages">
       <div className="grid gap-3 md:grid-cols-3">
-        {PAYMENTS.map((p) => (
+        {EXAM_PACKAGES.map((p) => (
           <button
             type="button"
             key={p.code}
@@ -282,21 +285,21 @@ export function PassPurchase({
               form.packageCode === p.code ? 'border-[#F15A24] ring-1 ring-[#F15A24]' : 'border-slate-200 hover:border-slate-300'
             }`}
           >
-            {p.best && (
+            {p.featured && (
               <span className="absolute right-3 top-3 rounded-full bg-[#F15A24] px-2 py-0.5 text-xs font-bold text-white">
                 Best value
               </span>
             )}
-            <h3 className="font-bold text-[#0A4F8A]">{p.name}</h3>
+            <h3 className="font-bold text-[#0A4F8A]">{p.name.en}</h3>
             <p className="mt-1 text-2xl font-extrabold text-[#2D3748]">Rs {p.amount}</p>
             <p className="text-xs text-slate-500">{p.days} days access</p>
-            <p className="mt-2 text-sm text-slate-600">{p.detail}</p>
+            <p className="mt-2 text-sm text-slate-600">{p.summary.en}</p>
           </button>
         ))}
       </div>
 
       <Card className="p-5">
-        <h2 className="text-lg font-bold text-[#0A4F8A]">Activate {selected.name}</h2>
+        <h2 className="text-lg font-bold text-[#0A4F8A]">Activate {selected.name.en}</h2>
         <p className="mt-1 text-sm text-slate-600">
           Pay online with eSewa or Khalti, or choose a QR payment and upload its voucher for review.
         </p>

@@ -5,24 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { jsPDF } from 'jspdf';
 import { BRAND } from '@/lib/brand';
 import { startGatewayCheckout, type GatewayProvider } from '@/lib/billing-checkout';
-
-const packages = [
-  {
-    code: 'agency_basic',
-    name: 'Agent Basic',
-    price: 499,
-    days: 180,
-    features: ['Unlimited policies', 'Family policy grouping', 'TDS and commission tools', 'Offline sync', 'Private document vault'],
-  },
-  {
-    code: 'agency_pro',
-    name: 'Agent Pro',
-    price: 899,
-    days: 365,
-    features: ['Everything in Basic', 'Downline hierarchy & titles', 'Installment calendar & projections', 'Festival banner generator', 'Priority coaching support'],
-    best: true,
-  },
-] as const;
+import { PAID_AGENCY_PACKAGES } from '@/lib/packages';
 
 export function Billing() {
   const { session, profile } = useAuth();
@@ -239,7 +222,7 @@ export function Billing() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {packages.map((p) => (
+        {PAID_AGENCY_PACKAGES.map((p) => (
           <button
             type="button"
             key={p.code}
@@ -251,19 +234,19 @@ export function Billing() {
               chosen === p.code ? 'border-[#F15A24] ring-1 ring-[#F15A24]' : 'border-slate-200 hover:border-slate-300'
             }`}
           >
-            {'best' in p && p.best && (
+            {p.featured && (
               <span className="absolute right-4 top-4 rounded-full bg-[#F15A24] px-2.5 py-1 text-xs font-bold text-white">
                 Best value
               </span>
             )}
-            <h2 className="text-xl font-bold text-[#0A4F8A]">{p.name}</h2>
+            <h2 className="text-xl font-bold text-[#0A4F8A]">{p.name.en}</h2>
             <p className="mt-1 text-3xl font-black text-slate-900 tabular-nums">
-              Rs {p.price}
+              Rs {p.amount}
               <span className="text-sm font-normal text-slate-500"> / {p.days} days</span>
             </p>
             <ul className="mt-3 list-inside list-disc text-sm text-slate-600 space-y-1">
               {p.features.map((f) => (
-                <li key={f}>{f}</li>
+                <li key={f.en}>{f.en}</li>
               ))}
             </ul>
           </button>
