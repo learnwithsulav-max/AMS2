@@ -34,11 +34,10 @@ jobs:
           [[ -n "$SUPABASE_PROJECT_ID" ]] || missing+=("SUPABASE_PROJECT_ID")
 
           if ((${#missing[@]})); then
-            echo "::notice title=Supabase migration deploy skipped::Add these GitHub repository secrets to enable deployment: ${missing[*]}"
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "::error title=Supabase migration deploy blocked::Configure these GitHub repository secrets to enable deployment: ${missing[*]}"
+            exit 1
           fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
 
       - name: Check out repository
         if: steps.secrets.outputs.configured == 'true'
