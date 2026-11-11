@@ -2,6 +2,15 @@
 module.exports = {
   reactStrictMode: true,
   output: 'standalone',
+  async redirects() {
+    return [
+      {
+        source: '/team-sulav',
+        destination: '/',
+        permanent: false,
+      },
+    ];
+  },
   allowedDevOrigins: [
     '*.run.app',
     'localhost:3000',
@@ -11,4 +20,3 @@ module.exports = {
     root: __dirname,
   },
 };
-
