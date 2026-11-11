@@ -30,6 +30,7 @@ export function PassPurchase({
   const [orderError, setOrderError] = useState('');
   const [orderChecking, setOrderChecking] = useState(false);
   const paymentForm = useRef<HTMLFormElement>(null);
+  const invoiceStatus = order?.invoiceStatus || order?.status;
 
   useEffect(() => {
     const packageCode = new URLSearchParams(window.location.search).get('package');
@@ -217,13 +218,14 @@ export function PassPurchase({
     pdf.text(`Candidate Name: ${candidateName || 'Candidate'}`, 20, 56);
     pdf.text(`Phone: ${candidatePhone || ''}`, 120, 56);
     pdf.text(`Package: ${order?.packageCode || 'Exam Practice Pass'}`, 20, 64);
-    pdf.text(`Amount Paid: NPR ${order?.amount || quote?.amount || selected.amount}`, 120, 64);
-    pdf.text(`Status: ${(order?.status || 'approved').toUpperCase()}`, 20, 72);
+    pdf.text(`Amount: Rs ${order?.amount || quote?.amount || selected.amount}`, 120, 64);
+    pdf.text(`Status: ${String(invoiceStatus || 'approved').replaceAll('_', ' ').toUpperCase()}`, 20, 72);
     pdf.text(`Payment Gateway / Mode: ${(order?.provider || form.provider).toUpperCase()}`, 120, 72);
     pdf.text(`Pass Code: ${order?.passCode || 'Pending Verification'}`, 20, 80);
     pdf.text(`Valid Until: ${order?.expiresAt ? new Date(order.expiresAt).toLocaleDateString('en-GB') : 'Active'}`, 120, 80);
     pdf.text(`Receipt Reference: ${order?.id || claim?.orderId || ''}`, 20, 88);
     pdf.text(`Receipt Date: ${new Date().toLocaleDateString('en-GB')}`, 120, 88);
+    pdf.text('VAT: Not charged (PAN registered; not VAT registered)', 20, 96);
 
     // Official Stamp
     pdf.setDrawColor(241, 90, 36);
@@ -306,12 +308,15 @@ export function PassPurchase({
         <p className="mt-1 text-xs text-slate-500">
           Questions about a payment or receipt? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.payment}`}>{BRAND.contact.emails.payment}</a>.
         </p>
+        <p className="text-xs text-slate-500">
+          Prices are in Nepalese rupees (NPR, Rs). VAT is not charged because the seller is PAN-registered, not VAT-registered.
+        </p>
 
         {claim && (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex items-center justify-between">
               <span>
-                Status: <b className="capitalize text-[#0A4F8A]">{order?.status || (orderChecking ? 'Checking...' : 'Unavailable')}</b>
+                Status: <b className="capitalize text-[#0A4F8A]">{invoiceStatus ? String(invoiceStatus).replaceAll('_', ' ') : orderChecking ? 'Checking...' : 'Unavailable'}</b>
               </span>
               {order?.expiresAt && (
                 <span className="text-xs text-slate-500">
@@ -423,7 +428,7 @@ export function PassPurchase({
 
             {quote && (
               <p className="text-sm font-semibold text-emerald-700">
-                Discount applied: {quote.discountPercent}% · Amount to Pay: <b>Rs {quote.amount.toLocaleString()}</b>
+                Discount applied: {quote.discountPercent}% · Total: <b>Rs {quote.totalAmount.toLocaleString('en-NP')}</b> (VAT not charged)
               </p>
             )}
 

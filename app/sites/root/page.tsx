@@ -125,6 +125,11 @@ export default function Landing() {
               </Card>
             ))}
           </div>
+          <p className="mt-4 text-xs text-slate-500">
+            {lang === 'en'
+              ? 'Prices are in Nepalese rupees (NPR, Rs). VAT is not charged because the seller is PAN-registered, not VAT-registered.'
+              : 'मूल्य नेपाली रुपैयाँ (NPR, रु) मा हुन्। बिक्रेता PAN दर्ता भएको तर VAT दर्ता नभएकाले VAT लिइँदैन।'}
+          </p>
         </div>
       </section>
 

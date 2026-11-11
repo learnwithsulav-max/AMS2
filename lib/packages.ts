@@ -17,7 +17,7 @@ export const AGENCY_PACKAGES = [
   {
     code: 'agency_basic',
     name: { en: 'Agent Basic', ne: 'एजेन्ट बेसिक' },
-    amount: 499,
+    amount: 944,
     days: 180,
     summary: { en: 'Essential tools for managing your clients and policies.', ne: 'ग्राहक र पोलिसी व्यवस्थापनका लागि आवश्यक टुलहरू।' },
     features: [
@@ -32,7 +32,7 @@ export const AGENCY_PACKAGES = [
   {
     code: 'agency_pro',
     name: { en: 'Agent Pro', ne: 'एजेन्ट प्रो' },
-    amount: 899,
+    amount: 2024,
     days: 365,
     summary: { en: 'Everything in Basic, plus tools to grow and support your team.', ne: 'बेसिकका सबै सुविधा र टिम विस्तार तथा सहयोग गर्ने थप टुलहरू।' },
     features: [
@@ -52,7 +52,7 @@ export const EXAM_PACKAGES = [
   {
     code: 'exam_weekly',
     name: { en: 'Weekly Pass', ne: 'साप्ताहिक पास' },
-    amount: 99,
+    amount: 201,
     days: 7,
     summary: { en: 'Quick revision with unlimited mock practice.', ne: 'असीमित नमुना अभ्याससहित छिटो दोहोर्‍याउने तयारी।' },
     features: [
@@ -65,7 +65,7 @@ export const EXAM_PACKAGES = [
   {
     code: 'exam_half_month',
     name: { en: 'Half-Month Pass', ne: 'अर्ध-मासिक पास' },
-    amount: 199,
+    amount: 336,
     days: 15,
     summary: { en: 'Full question bank with Nepali and English support.', ne: 'नेपाली र अंग्रेजी सहयोगसहित पूर्ण प्रश्न बैंक।' },
     features: [
@@ -78,7 +78,7 @@ export const EXAM_PACKAGES = [
   {
     code: 'exam_pro_month',
     name: { en: 'Pro Monthly Pass', ne: 'प्रो मासिक पास' },
-    amount: 250,
+    amount: 539,
     days: 30,
     summary: { en: 'A full month of practice with analytics and explanations.', ne: 'विश्लेषण र व्याख्यासहित एक महिनाको पूर्ण अभ्यास।' },
     features: [

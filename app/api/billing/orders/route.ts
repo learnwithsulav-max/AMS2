@@ -6,7 +6,7 @@ import sharp from 'sharp';
 import { admin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/portal-auth';
 import { requireExamCandidate } from '@/lib/exam-auth';
-import { enqueueUserNotification } from '@/lib/notifications';
+import { enqueueBillingInvoiceNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 const hash = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const path = `${isExam ? `exam/${user!.id}` : user!.id}/${id}.jpg`;
   const { error: uploadError } = await admin.storage.from('payment-vouchers').upload(path, image, { contentType: 'image/jpeg', upsert: false });
   if (uploadError) return NextResponse.json({ error: 'Could not securely store the voucher.' }, { status: 500 });
-  const { data, error } = await admin.from('billing_orders').insert({ id, user_id: user?.id || null, product: isExam ? 'exam_pass' : packageCode, package_code: packageCode, provider, amount, currency: 'NPR', status: 'pending', voucher_path: path, claim_token_hash: null, metadata: { ...(isExam ? { name, phone, email: profile?.email } : {}), duration_days: pkg.duration_days, ...(couponCode ? { coupon_code: couponCode, discount_percent: discount } : {}) } }).select('id,amount,currency,status,created_at').single();
+  const { data, error } = await admin.from('billing_orders').insert({ id, user_id: user?.id || null, product: isExam ? 'exam_pass' : packageCode, package_code: packageCode, provider, amount, currency: 'NPR', status: 'pending', voucher_path: path, claim_token_hash: null, metadata: { ...(isExam ? { name, phone, email: profile?.email } : {}), duration_days: pkg.duration_days, base_amount_npr: Number(pkg.amount_npr), ...(couponCode ? { coupon_code: couponCode, discount_percent: discount } : {}) } }).select('id,amount,currency,status,created_at').single();
   if (error || !data) { await admin.storage.from('payment-vouchers').remove([path]); return NextResponse.json({ error: 'Could not create the payment request.' }, { status: 500 }); }
   if (couponCode) {
     const { data: reserved, error: reserveError } = await admin.rpc('reserve_coupon', { p_code: couponCode, p_order_id: id });
@@ -66,16 +66,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This coupon just reached its use limit. Try another code.' }, { status: 409 });
     }
   }
-  if (isExam && user) {
+  if (user) {
     try {
-      await enqueueUserNotification({
+      await enqueueBillingInvoiceNotification({
         userId: user.id,
-        dedupeKey: `exam-payment-received:${id}`,
-        subject: 'Exam payment receipt received',
-        message: `Your payment voucher for ${packageCode} was received and is pending review.`,
+        orderId: id,
+        packageCode,
+        baseAmount: Number(pkg.amount_npr),
+        amount,
+        status: 'under_review',
       });
     } catch (notifyError) {
-      console.error('Payment order was created, but confirmation could not be queued:', notifyError instanceof Error ? notifyError.message : 'unknown error');
+      console.error('Payment order was created, but its invoice notification could not be queued:', notifyError instanceof Error ? notifyError.message : 'unknown error');
     }
   }
   return NextResponse.json({ order: data }, { status: 201 });
@@ -85,7 +87,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url); const id = url.searchParams.get('id') || '';
   const claim = url.searchParams.get('claim') || '';
   if (!id) return NextResponse.json({ error: 'Order id is required.' }, { status: 400 });
-  const { data, error } = await admin.from('billing_orders').select('id,user_id,package_code,product,amount,currency,status,expires_at,claim_token_hash,metadata,created_at').eq('id',id).maybeSingle();
+  const { data, error } = await admin.from('billing_orders').select('id,user_id,package_code,product,amount,currency,status,expires_at,claim_token_hash,metadata,created_at,voucher_path,reviewed_by,provider').eq('id',id).maybeSingle();
   if (error || !data) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
   if (data.product === 'exam_pass') {
     const auth = await requireExamCandidate(request);
@@ -99,5 +101,10 @@ export async function GET(request: Request) {
   else { const expected = Buffer.from(data.claim_token_hash || '', 'hex'); const actual = Buffer.from(hash(claim),'hex'); if (!claim || expected.length !== actual.length || !expected.length || !timingSafeEqual(expected,actual)) return NextResponse.json({error:'Invalid private order link.'},{status:403}); }
   let passCode: string | null = null;
   if (data.status === 'paid' && data.product === 'exam_pass') { const { data: pass } = await admin.from('exam_pass_orders').select('pass_code').eq('billing_order_id',id).maybeSingle(); passCode = pass?.pass_code || null; }
-  return NextResponse.json({ order: { id:data.id, packageCode:data.package_code, amount:data.amount, currency:data.currency, status:data.status, expiresAt:data.expires_at, passCode, createdAt:data.created_at } });
+  const invoiceStatus = data.status === 'pending'
+    ? data.voucher_path ? 'under_review' : 'unpaid'
+    : data.status === 'paid'
+      ? data.reviewed_by ? 'approved' : 'paid'
+      : data.status;
+  return NextResponse.json({ order: { id:data.id, packageCode:data.package_code, amount:data.amount, currency:data.currency, status:data.status, invoiceStatus, provider:data.provider, expiresAt:data.expires_at, passCode, createdAt:data.created_at } });
 }

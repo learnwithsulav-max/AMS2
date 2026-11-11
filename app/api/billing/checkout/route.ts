@@ -4,6 +4,7 @@ import { admin } from '@/lib/supabase-admin';
 import { requirePortalUser } from '@/lib/portal-auth';
 import { requireExamCandidate } from '@/lib/exam-auth';
 import { siteUrl } from '@/lib/brand';
+import { enqueueBillingInvoiceNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 const money = (value: number) => value.toFixed(2);
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
     metadata: {
       ...(candidateProfile ? { name: candidateProfile.name, phone: candidateProfile.phone, email: candidateProfile.email } : {}),
       duration_days: pkg.duration_days,
+      base_amount_npr: Number(pkg.amount_npr),
       ...(couponCode ? { coupon_code: couponCode, discount_percent: discount } : {}),
     },
   }).select('id').single();
@@ -67,6 +69,13 @@ export async function POST(request: Request) {
     };
     fields.signature = createHmac('sha256', process.env.ESEWA_SECRET_KEY!).update(`total_amount=${fields.total_amount},transaction_uuid=${fields.transaction_uuid},product_code=${fields.product_code}`).digest('base64');
     await admin.from('billing_orders').update({ provider_reference: order.id }).eq('id', order.id);
+    if (user.id) {
+      try {
+        await enqueueBillingInvoiceNotification({ userId: user.id, orderId: order.id, packageCode, baseAmount: Number(pkg.amount_npr), amount, status: 'unpaid' });
+      } catch (notificationError) {
+        console.error('Payment order was created, but its unpaid invoice could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+      }
+    }
     return NextResponse.json({ provider: 'esewa', orderId: order.id, action: process.env.ESEWA_ENV === 'test' ? 'https://rc-epay.esewa.com.np/api/epay/main/v2/form' : 'https://epay.esewa.com.np/api/epay/main/v2/form', fields });
   }
 
@@ -86,5 +95,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Khalti could not initialize payment. Try again later.' }, { status: 502 });
   }
   await admin.from('billing_orders').update({ provider_reference: khalti.pidx }).eq('id', order.id);
+  if (user.id) {
+    try {
+      await enqueueBillingInvoiceNotification({ userId: user.id, orderId: order.id, packageCode, baseAmount: Number(pkg.amount_npr), amount, status: 'unpaid' });
+    } catch (notificationError) {
+      console.error('Payment order was created, but its unpaid invoice could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+    }
+  }
   return NextResponse.json({ provider: 'khalti', paymentUrl: khalti.payment_url, orderId: order.id });
 }

@@ -17,5 +17,17 @@ export async function POST(request: Request) {
     discount = Number(data);
     if(discount>=100)return NextResponse.json({error:'A 100% coupon cannot be used for a paid package.'},{status:400});
   }
-  return NextResponse.json({ packageCode, baseAmount: Number(pkg.amount_npr), discountPercent: discount, amount: Number((Number(pkg.amount_npr) * (1 - discount / 100)).toFixed(2)) });
+  const amount = Number((Number(pkg.amount_npr) * (1 - discount / 100)).toFixed(2));
+  return NextResponse.json({
+    packageCode,
+    baseAmount: Number(pkg.amount_npr),
+    discountPercent: discount,
+    vatRate: 0,
+    vatAmount: 0,
+    amount,
+    totalAmount: amount,
+    currency: 'NPR',
+    displayCurrency: 'Rs',
+    taxNote: 'VAT is not charged because the seller is not VAT-registered.',
+  });
 }

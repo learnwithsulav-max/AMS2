@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 import { siteUrl } from '@/lib/brand';
-import { enqueueUserNotification } from '@/lib/notifications';
+import { enqueueBillingInvoiceNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 function redirect(path: string) { return NextResponse.redirect(path, { status: 303 }); }
@@ -70,16 +70,17 @@ async function markPaid(order: any, transaction: string, request: Request) {
   if(order.metadata?.coupon_code){const {error}=await admin.rpc('finalize_coupon',{p_order_id:order.id});if(error)throw error;}
   if (order.user_id) {
     try {
-      await enqueueUserNotification({
+      await enqueueBillingInvoiceNotification({
         userId: order.user_id,
-        dedupeKey: `payment-confirmed:${order.id}`,
-        subject: 'Payment confirmed',
-        message: `${order.package_code} payment of NPR ${order.amount} has been confirmed. Your access has been activated.`,
-        includeSms: true,
-        purpose: 'payment_confirmation',
+        orderId: order.id,
+        packageCode: order.package_code,
+        baseAmount: Number(order.metadata?.base_amount_npr || order.amount),
+        amount: Number(order.amount),
+        status: 'paid',
+        expiresAt: order.expires_at,
       });
     } catch (error) {
-      console.error('Payment was confirmed, but confirmation notifications could not be queued:', error instanceof Error ? error.message : 'unknown error');
+      console.error('Payment was confirmed, but its invoice notification could not be queued:', error instanceof Error ? error.message : 'unknown error');
     }
   }
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;

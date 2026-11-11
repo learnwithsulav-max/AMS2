@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getAdminRequestIp, requireAdmin } from '@/lib/admin-auth';
 import { admin } from '@/lib/supabase-admin';
-import { enqueueUserNotification } from '@/lib/notifications';
+import { enqueueBillingInvoiceNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,20 +117,21 @@ export async function POST(request: Request) {
     action = decision === 'approve' ? 'exam_pass_approved' : 'exam_pass_rejected';
     targetId = id;
     meta = { decision };
-    if (data && decision === 'approve') {
-      const { data: passOrder } = await admin.from('exam_pass_orders').select('user_id,expires_at').eq('id', id).maybeSingle();
+    if (data) {
+      const { data: passOrder } = await admin.from('exam_pass_orders').select('user_id,expires_at,amount,package_code').eq('id', id).maybeSingle();
       if (passOrder?.user_id) {
         try {
-          await enqueueUserNotification({
+          await enqueueBillingInvoiceNotification({
             userId: passOrder.user_id,
-            dedupeKey: `exam-pass-approved:${id}`,
-            subject: 'Exam pass payment confirmed',
-            message: `Your exam pass has been approved and is active until ${passOrder.expires_at?.slice(0, 10) || 'its expiry date'}. Sign in to start your exam.`,
-            includeSms: true,
-            purpose: 'payment_confirmation',
+            orderId: id,
+            packageCode: passOrder.package_code || 'exam_pass',
+            baseAmount: Number(passOrder.amount),
+            amount: Number(passOrder.amount),
+            status: decision === 'approve' ? 'approved' : 'rejected',
+            expiresAt: decision === 'approve' ? passOrder.expires_at : null,
           });
         } catch (notificationError) {
-          console.error('Exam pass was approved, but confirmation notifications could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+          console.error('Exam pass review completed, but its invoice notification could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
         }
       }
     }
@@ -195,17 +196,31 @@ export async function POST(request: Request) {
     if(data&&decision==='approve'){
       if (order.user_id) {
         try {
-          await enqueueUserNotification({
+          await enqueueBillingInvoiceNotification({
             userId: order.user_id,
-            dedupeKey: `payment-confirmed:${id}`,
-            subject: 'Payment confirmed',
-            message: `Your ${order.package_code} payment of NPR ${order.amount} has been confirmed. Access is active until ${expiresAt.slice(0, 10)}.`,
-            includeSms: true,
-            purpose: 'payment_confirmation',
+            orderId: id,
+            packageCode: order.package_code,
+            baseAmount: Number(order.metadata?.base_amount_npr || order.amount),
+            amount: Number(order.amount),
+            status: 'approved',
+            expiresAt,
           });
         } catch (notificationError) {
-          console.error('Payment was approved, but confirmation notifications could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
+          console.error('Payment was approved, but its invoice notification could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
         }
+      }
+    } else if (data && order.user_id) {
+      try {
+        await enqueueBillingInvoiceNotification({
+          userId: order.user_id,
+          orderId: id,
+          packageCode: order.package_code,
+          baseAmount: Number(order.metadata?.base_amount_npr || order.amount),
+          amount: Number(order.amount),
+          status: 'rejected',
+        });
+      } catch (notificationError) {
+        console.error('Payment was rejected, but its invoice notification could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
       }
     }
   } else if (body.action === 'update_subscription') {
@@ -218,7 +233,7 @@ export async function POST(request: Request) {
     result = await admin.from('agency_subscriptions').update({ plan, status,
       ...(status === 'active' ? { period_started_at: now.toISOString(), period_ends_at: periodEnd?.toISOString() } : {}),
       updated_at: now.toISOString() }).eq('id', id).select('id').maybeSingle();
-    action = 'agency_subscription_updated'; targetId = id; meta = { plan, status, amount_npr: plan === 'basic' ? 499 : plan === 'pro' ? 899 : 0 };
+    action = 'agency_subscription_updated'; targetId = id; meta = { plan, status, amount_npr: plan === 'basic' ? 944 : plan === 'pro' ? 2024 : 0 };
     const { data: subscription } = await admin.from('agency_subscriptions').select('agent_id').eq('id', id).maybeSingle();
     if (subscription?.agent_id) await admin.from('profiles').update({ membership: status === 'active' && plan !== 'trial' ? 'premium' : 'free' }).eq('id', subscription.agent_id);
   } else if (body.action === 'save_company_rule') {

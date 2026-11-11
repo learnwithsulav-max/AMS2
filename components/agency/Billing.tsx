@@ -17,6 +17,8 @@ export function Billing() {
   const [pan, setPan] = useState(profile?.pan_number || '');
   const [quote, setQuote] = useState<any>(null);
   const [status, setStatus] = useState<any>(null);
+  const invoiceStatus = status?.invoiceStatus || status?.status;
+  const invoiceStatusLabel = invoiceStatus ? String(invoiceStatus).replaceAll('_', ' ') : '';
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -169,8 +171,8 @@ export function Billing() {
     pdf.text(`Agent Name: ${profile?.name || ''}`, 20, 56);
     pdf.text(`Agent ID: ${profile?.id || ''}`, 120, 56);
     pdf.text(`Package: ${status?.packageCode === 'agency_pro' ? 'Agent Pro (365 Days)' : 'Agent Basic (180 Days)'}`, 20, 64);
-    pdf.text(`Amount Paid: NPR ${status?.amount || 0}`, 120, 64);
-    pdf.text(`Status: ${(status?.status || 'active').toUpperCase()}`, 20, 72);
+    pdf.text(`Amount: Rs ${status?.amount || 0}`, 120, 64);
+    pdf.text(`Status: ${(invoiceStatusLabel || 'active').toUpperCase()}`, 20, 72);
     pdf.text(`Payment Gateway / Mode: ${(status?.provider || provider).toUpperCase()}`, 120, 72);
     if (pan || profile?.pan_number) {
       pdf.text(`PAN: ${pan || profile?.pan_number}`, 20, 80);
@@ -178,6 +180,7 @@ export function Billing() {
     pdf.text(`Valid Until: ${status?.expiresAt ? new Date(status.expiresAt).toLocaleDateString('en-GB') : 'Active'}`, 120, 80);
     pdf.text(`Receipt Reference: ${status?.id || ''}`, 20, 88);
     pdf.text(`Receipt Date: ${new Date().toLocaleDateString('en-GB')}`, 120, 88);
+    pdf.text('VAT: Not charged (PAN registered; not VAT registered)', 20, 96);
 
     // Official Stamp
     pdf.setDrawColor(241, 90, 36);
@@ -213,6 +216,9 @@ export function Billing() {
           Billing questions? <a className="font-semibold text-[#0A4F8A] underline" href={`mailto:${BRAND.contact.emails.billing}`}>{BRAND.contact.emails.billing}</a>
         </p>
       </header>
+      <p className="text-xs text-slate-500">
+        Prices are in Nepalese rupees (NPR, Rs). VAT is not charged because the seller is PAN-registered, not VAT-registered.
+      </p>
 
       <Card className="p-4 bg-blue-50/50 border border-blue-200">
         <h2 className="font-bold text-[#0A4F8A]">7-Day Free Trial Available</h2>
@@ -315,7 +321,7 @@ export function Billing() {
               </Btn>
               {quote && (
                 <p className="text-sm font-semibold text-emerald-700">
-                  Discount applied: {quote.discountPercent}% · Pay <b>NPR {quote.amount.toLocaleString()}</b>
+                  Discount applied: {quote.discountPercent}% · Total <b>Rs {quote.totalAmount.toLocaleString('en-NP')}</b> (VAT not charged)
                 </p>
               )}
             </div>
@@ -338,7 +344,7 @@ export function Billing() {
             <div className="flex items-center justify-between">
               <span>
                 Order Ref: <b className="font-mono">{status.id}</b> · Status:{' '}
-                <b className="capitalize text-[#0A4F8A]">{status.status}</b>
+                <b className="capitalize text-[#0A4F8A]">{invoiceStatusLabel}</b>
               </span>
             </div>
 

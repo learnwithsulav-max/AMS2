@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { admin } from '@/lib/supabase-admin';
 import { requireExamCandidate } from '@/lib/exam-auth';
+import { enqueueBillingInvoiceNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -36,6 +37,18 @@ export async function POST(request: Request) {
   if (error || !data) {
     console.error('Exam pass request could not be recorded:', error?.message);
     return NextResponse.json({ error: 'Could not submit your receipt. Please try again.' }, { status: 500 });
+  }
+  try {
+    await enqueueBillingInvoiceNotification({
+      userId: auth.user.id,
+      orderId: data.id,
+      packageCode: 'exam_pass',
+      baseAmount: Number(data.amount),
+      amount: Number(data.amount),
+      status: 'under_review',
+    });
+  } catch (notificationError) {
+    console.error('Exam pass request was created, but its invoice notification could not be queued:', notificationError instanceof Error ? notificationError.message : 'unknown error');
   }
   return NextResponse.json({ order: data, claimToken }, { status: 201 });
 }

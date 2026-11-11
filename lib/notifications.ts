@@ -1,5 +1,6 @@
 import 'server-only';
 import { admin } from '@/lib/supabase-admin';
+import { AGENCY_PACKAGES, EXAM_PACKAGES } from '@/lib/packages';
 
 export type NotificationChannel = 'email' | 'sms' | 'whatsapp';
 
@@ -58,9 +59,16 @@ export async function enqueueUserNotification({
   if (error) throw new Error(`Could not load notification recipient: ${error.message}`);
   if (!profile) throw new Error('Notification recipient profile was not found.');
 
+  let email = profile.email;
+  if (!email) {
+    const { data: authUser, error: authError } = await admin.auth.admin.getUserById(userId);
+    if (authError) throw new Error(`Could not load registered email address: ${authError.message}`);
+    email = authUser.user.email || null;
+  }
+
   const jobs = [];
-  if (profile.email) {
-    jobs.push(enqueueNotification({ dedupeKey, channel: 'email', recipient: profile.email, subject, message }));
+  if (email) {
+    jobs.push(enqueueNotification({ dedupeKey, channel: 'email', recipient: email, subject, message }));
   }
   if (profile.phone) {
     if (profile.whatsapp_opt_in) {
@@ -77,4 +85,57 @@ export async function enqueueUserNotification({
     }
   }
   await Promise.all(jobs);
+}
+
+export async function enqueueBillingInvoiceNotification({
+  userId,
+  orderId,
+  packageCode,
+  amount,
+  baseAmount = amount,
+  status,
+  expiresAt,
+}: {
+  userId: string;
+  orderId: string;
+  packageCode: string;
+  baseAmount?: number;
+  amount: number;
+  status: 'unpaid' | 'under_review' | 'approved' | 'paid' | 'rejected';
+  expiresAt?: string | null;
+}) {
+  const pkg = [...AGENCY_PACKAGES, ...EXAM_PACKAGES].find((item) => item.code === packageCode);
+  const packageName = pkg?.name.en || (packageCode === 'exam_pass' ? 'Exam Practice Pass' : packageCode);
+  const statusLabel = {
+    unpaid: 'UNPAID',
+    under_review: 'UNDER REVIEW',
+    approved: 'APPROVED BY ADMIN',
+    paid: 'PAID — PAYMENT PROVIDER VERIFIED',
+    rejected: 'PAYMENT REJECTED',
+  }[status];
+  const statusNote = {
+    unpaid: 'Complete payment using the method selected at checkout.',
+    under_review: 'Your payment proof was received and is awaiting administrator review.',
+    approved: expiresAt ? `Your payment was approved by an administrator. Access is active until ${expiresAt.slice(0, 10)}.` : 'Your payment was approved by an administrator.',
+    paid: expiresAt ? `Your payment was confirmed by the payment provider. Access is active until ${expiresAt.slice(0, 10)}.` : 'Your payment was confirmed by the payment provider.',
+    rejected: 'Your payment proof was not approved. Contact payment support before submitting another payment.',
+  }[status];
+  const message = [
+    'Learn With Sulav — Payment invoice (not a VAT invoice)',
+    `Invoice reference: ${orderId}`,
+    `Package: ${packageName}`,
+    `Package price: Rs ${baseAmount.toLocaleString('en-NP')} (NPR)`,
+    ...(baseAmount > amount ? [`Discount: −Rs ${(baseAmount - amount).toLocaleString('en-NP')}`] : []),
+    'VAT: Rs 0 — not charged (seller is PAN-registered, not VAT-registered)',
+    `Total: Rs ${amount.toLocaleString('en-NP')} (NPR)`,
+    `Status: ${statusLabel}`,
+    statusNote,
+  ].join('\n');
+
+  await enqueueUserNotification({
+    userId,
+    dedupeKey: `billing-invoice:${orderId}:${status}`,
+    subject: `Learn With Sulav invoice ${statusLabel.toLowerCase()} — ${orderId}`,
+    message,
+  });
 }
