@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "supabase/migrations/**"
+      - ".github/workflows/supabase-migrations.yml"
   workflow_dispatch:
 
 permissions:
