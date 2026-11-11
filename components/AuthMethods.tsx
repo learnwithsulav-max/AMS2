@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { BRAND } from '@/lib/brand';
 import { Btn } from './ui';
 
 type Portal = 'agency' | 'exam';
@@ -72,7 +73,7 @@ export function AuthMethods({ portal }: { portal: Portal }) {
       </Btn>
       {message && <p className="text-sm font-medium text-red-700" role="alert">{message}</p>}
       <p className="text-xs leading-relaxed text-slate-500">
-        TikTok and Instagram sign-in require their custom OAuth providers to be configured in Supabase.
+        Sign-in trouble? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.support}`}>Contact support</a>.
       </p>
     </div>
   );
@@ -85,5 +86,12 @@ export function AuthCallbackMessage() {
     return code ? callbackErrors[code] || callbackErrors.provider_failed : '';
   });
   if (!message) return null;
-  return <p className="text-sm font-medium text-red-700" role="alert">{message}</p>;
+  return (
+    <div className="grid gap-1">
+      <p className="text-sm font-medium text-red-700" role="alert">{message}</p>
+      <p className="text-xs text-slate-500">
+        Need help? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.support}`}>Contact support</a>.
+      </p>
+    </div>
+  );
 }

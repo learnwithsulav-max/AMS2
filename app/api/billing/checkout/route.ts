@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     };
     fields.signature = createHmac('sha256', process.env.ESEWA_SECRET_KEY!).update(`total_amount=${fields.total_amount},transaction_uuid=${fields.transaction_uuid},product_code=${fields.product_code}`).digest('base64');
     await admin.from('billing_orders').update({ provider_reference: order.id }).eq('id', order.id);
-    return NextResponse.json({ provider: 'esewa', action: process.env.ESEWA_ENV === 'test' ? 'https://rc-epay.esewa.com.np/api/epay/main/v2/form' : 'https://epay.esewa.com.np/api/epay/main/v2/form', fields });
+    return NextResponse.json({ provider: 'esewa', orderId: order.id, action: process.env.ESEWA_ENV === 'test' ? 'https://rc-epay.esewa.com.np/api/epay/main/v2/form' : 'https://epay.esewa.com.np/api/epay/main/v2/form', fields });
   }
 
   const base = process.env.KHALTI_ENV === 'test' ? 'https://dev.khalti.com/api/v2' : 'https://khalti.com/api/v2';

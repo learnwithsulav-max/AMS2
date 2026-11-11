@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { BRAND } from '@/lib/brand';
 import { Btn, Card, Field } from '../ui';
 import { AuthCallbackMessage, AuthMethods } from '../AuthMethods';
 import { PhoneOtpForm } from '../PhoneOtpForm';
@@ -26,6 +27,12 @@ export function ExamAccount() {
     setMessage('');
     setIsError(false);
 
+    const callback = new URL('/api/auth/callback', window.location.origin);
+    callback.searchParams.set('portal', 'exam');
+    callback.searchParams.set('signup', 'true');
+    const returnUrl = new URL(window.location.href);
+    callback.searchParams.set('next', `${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);
+
     let result;
     try {
       result = mode === 'register'
@@ -33,7 +40,7 @@ export function ExamAccount() {
             email: form.email.trim(),
             password: form.password,
             options: {
-              emailRedirectTo: new URL('/api/auth/callback?portal=exam', window.location.origin).toString(),
+              emailRedirectTo: callback.toString(),
               data: {
                 name: form.name.trim(),
                 phone: form.phone.trim(),
@@ -153,6 +160,11 @@ export function ExamAccount() {
       >
         {mode === 'register' ? 'Already registered? Log in' : 'Need a candidate account? Register'}
       </button>
+      {mode === 'login' && (
+        <p className="mt-3 text-xs text-slate-500">
+          Need account help? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.support}`}>Contact support</a>.
+        </p>
+      )}
     </Card>
   );
 }

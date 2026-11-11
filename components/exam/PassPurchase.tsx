@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Card, Btn, Field } from '../ui';
 import { jsPDF } from 'jspdf';
 import { BRAND } from '@/lib/brand';
+import { startGatewayCheckout, type GatewayProvider } from '@/lib/billing-checkout';
 
 const CLAIM_KEY = 'lws_exam_package_claim';
 const PAYMENTS = [
@@ -26,7 +27,7 @@ export function PassPurchase({
   const router = useRouter();
   const [claim, setClaim] = useState<Claim | null>(null);
   const [order, setOrder] = useState<any>(null);
-  const [form, setForm] = useState({ packageCode: 'exam_pro_month', provider: 'fonepay', couponCode: '' });
+  const [form, setForm] = useState({ packageCode: 'exam_pro_month', provider: 'fonepay' as 'fonepay' | 'nepalpay' | GatewayProvider, couponCode: '' });
   const [quote, setQuote] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -89,6 +90,26 @@ export function PassPurchase({
     e.preventDefault();
     setBusy(true);
     setMessage('');
+    if (form.provider === 'esewa' || form.provider === 'khalti') {
+      try {
+        await startGatewayCheckout({
+          accessToken,
+          product: 'exam_pass',
+          packageCode: form.packageCode,
+          provider: form.provider,
+          couponCode: form.couponCode,
+          onOrderCreated: (orderId) => {
+            const next = { orderId };
+            sessionStorage.setItem(CLAIM_KEY, JSON.stringify(next));
+            setClaim(next);
+          },
+        });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Could not start checkout. Please try again.');
+        setBusy(false);
+      }
+      return;
+    }
     const fd = new FormData();
     fd.set('packageCode', form.packageCode);
     fd.set('provider', form.provider);
@@ -277,7 +298,10 @@ export function PassPurchase({
       <Card className="p-5">
         <h2 className="text-lg font-bold text-[#0A4F8A]">Activate {selected.name}</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Scan either QR code, then upload the payment voucher screenshot for your registered candidate account.
+          Pay online with eSewa or Khalti, or choose a QR payment and upload its voucher for review.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Questions about a payment or receipt? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.payment}`}>{BRAND.contact.emails.payment}</a>.
         </p>
 
         {claim && (
@@ -361,7 +385,24 @@ export function PassPurchase({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/nepalpay-qr.png" alt="NepalPay payment QR" className="mx-auto mt-2 h-44 w-full object-contain" />
               </label>
+              {(['esewa', 'khalti'] as const).map((provider) => (
+                <label key={provider} className="rounded-lg border p-3 text-center text-sm cursor-pointer hover:border-slate-400">
+                  <input
+                    type="radio"
+                    name="provider"
+                    checked={form.provider === provider}
+                    onChange={() => setForm({ ...form, provider })}
+                  />{' '}
+                  {provider === 'esewa' ? 'eSewa' : 'Khalti'}
+                </label>
+              ))}
             </div>
+
+            {(form.provider === 'esewa' || form.provider === 'khalti') && (
+              <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+                You will be redirected to {form.provider === 'esewa' ? 'eSewa' : 'Khalti'} to complete payment securely.
+              </p>
+            )}
 
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <Field
@@ -387,14 +428,18 @@ export function PassPurchase({
               Paying as <b>{candidateName}</b> · {candidatePhone}
             </p>
 
-            <label className="grid gap-1 text-sm font-medium">
-              Payment Voucher Screenshot (भौचर / ट्रान्सफर स्क्रिनसट)
-              <input id="exam-voucher" type="file" accept="image/jpeg,image/png,image/webp" required className="rounded-lg border p-2 text-sm" />
-            </label>
-            <p className="text-xs text-slate-500">The uploaded image is watermarked and stored privately for review.</p>
+            {(form.provider === 'fonepay' || form.provider === 'nepalpay') && (
+              <>
+                <label className="grid gap-1 text-sm font-medium">
+                  Payment Voucher Screenshot (भौचर / ट्रान्सफर स्क्रिनसट)
+                  <input id="exam-voucher" type="file" accept="image/jpeg,image/png,image/webp" required className="rounded-lg border p-2 text-sm" />
+                </label>
+                <p className="text-xs text-slate-500">The uploaded image is watermarked and stored privately for review.</p>
+              </>
+            )}
 
             <Btn type="submit" disabled={busy}>
-              {busy ? 'Submitting...' : `Submit Voucher · Rs ${quote?.amount ?? selected.amount}`}
+              {busy ? 'Please wait…' : form.provider === 'esewa' || form.provider === 'khalti' ? 'Continue to payment' : `Submit Voucher · Rs ${quote?.amount ?? selected.amount}`}
             </Btn>
           </form>
         )}

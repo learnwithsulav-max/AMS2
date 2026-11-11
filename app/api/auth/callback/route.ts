@@ -66,5 +66,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL('/', request.url));
+  const requestedNext = request.nextUrl.searchParams.get('next');
+  const safeNext = requestedNext
+    && requestedNext.startsWith('/')
+    && !requestedNext.startsWith('//')
+    && !requestedNext.includes('\\')
+    ? requestedNext
+    : '/';
+  const destination = new URL(safeNext, request.url);
+  if (destination.origin !== request.nextUrl.origin) return NextResponse.redirect(new URL('/', request.url));
+  return NextResponse.redirect(destination);
 }

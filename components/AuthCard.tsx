@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadAvatar } from '@/lib/auth';
+import { BRAND } from '@/lib/brand';
 import { Btn, Card, Field } from './ui';
 import { ALL_INSURANCE_COMPANIES, POPULAR_NEPALI_BRANCHES } from '@/lib/nepali-companies';
 import { AuthCallbackMessage } from './AuthMethods';
@@ -532,6 +533,12 @@ export function AuthCard({ title, allowRegister = true }: { title: string; allow
                 : 'Already have an agent account? Log in'}
             </button>
           </div>
+        )}
+
+        {mode === 'login' && (
+          <p className="mt-4 text-xs text-slate-500">
+            Need sign-in help? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.support}`}>Contact support</a>.
+          </p>
         )}
       </Card>
     </div>

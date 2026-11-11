@@ -15,6 +15,7 @@ import { QuestionImporter } from './QuestionImporter';
 import { MaskedPhone, maskPhone } from '@/components/MaskedPhone';
 import { PortalSidebar, type PortalNavGroup } from '@/components/PortalSidebar';
 import { DonutChart, TrendChart } from '@/components/DashboardCharts';
+import { BRAND } from '@/lib/brand';
 
 const TABLES = ['profiles', 'exam_attempts', 'exam_pass_settings', 'exam_pass_orders', 'billing_orders', 'question_reports', 'agency_feedback', 'leads', 'policies', 'schemes', 'scheme_status', 'activity_log', 'agency_subscriptions', 'company_rules', 'coupons', 'portfolio_leads', 'portfolio_reviews'];
 const PAGE_SIZE = 100;
@@ -34,8 +35,8 @@ export default function AdminApp() {
   };
   const out = <Btn variant="ghost" onClick={logout}>Log out</Btn>;
   if (loading) return <Shell site="admin"><p className="p-10 text-center text-slate-500">Loading...</p></Shell>;
-  if (!session) return <Shell site="admin"><AuthCard title="Master admin" allowRegister={false} /></Shell>;
-  if (profile?.role !== 'admin') return <Shell site="admin" right={out}><Card className="mx-auto my-16 max-w-md p-8 text-center"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-2 text-slate-600">This portal is for the master admin only.</p></Card></Shell>;
+  if (!session) return <Shell site="admin"><AuthCard title="Master admin" allowRegister={false} /><p className="mx-auto -mt-4 mb-8 max-w-xl px-4 text-center text-sm text-slate-600">Administrator access help: <a className="font-semibold text-[#0A4F8A] underline" href={`mailto:${BRAND.contact.emails.admin}`}>{BRAND.contact.emails.admin}</a>.</p></Shell>;
+  if (profile?.role !== 'admin') return <Shell site="admin" right={out}><Card className="mx-auto my-16 max-w-md p-8 text-center"><h1 className="text-xl font-bold">Access restricted</h1><p className="mt-2 text-slate-600">This portal is for the master admin only.</p><p className="mt-3 text-sm text-slate-600">Contact <a className="font-semibold text-[#0A4F8A] underline" href={`mailto:${BRAND.contact.emails.admin}`}>{BRAND.contact.emails.admin}</a> if you need help.</p></Card></Shell>;
   return <Shell site="admin" right={out}><MfaGate><Dashboard profile={profile} email={session.user.email} /></MfaGate></Shell>;
 }
 

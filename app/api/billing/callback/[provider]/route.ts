@@ -6,6 +6,12 @@ import { enqueueUserNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 function redirect(path: string) { return NextResponse.redirect(path, { status: 303 }); }
+function paymentReturnUrl(order: { product: string }, status: 'success' | 'failed') {
+  const portal = order.product === 'exam_pass' ? 'exam' : 'agency';
+  return portal === 'exam'
+    ? `${siteUrl('exam')}/?billing=${status}`
+    : `${siteUrl('agency')}/billing?billing=${status}`;
+}
 function verifySignature(payload: Record<string, any>, secret: string) {
   const fields = String(payload.signed_field_names || '').split(',').filter(Boolean);
   if (!fields.length || !payload.signature) return false;
@@ -88,8 +94,7 @@ export async function GET(request: Request, context: { params: Promise<{ provide
   const { data: order } = await admin.from('billing_orders').select('*').eq('id', orderId).eq('provider', provider).maybeSingle();
   if (!order) return redirect(`${siteUrl('root')}/billing/return?status=not-found`);
   if (order.status === 'paid') {
-    const pass = order.metadata?.pass_code;
-    return redirect(order.product === 'exam_pass' && pass ? `${siteUrl('exam')}/?passCode=${encodeURIComponent(pass)}` : `${siteUrl('agency')}/?billing=success`);
+    return redirect(paymentReturnUrl(order, 'success'));
   }
   try {
     let transaction = '';
@@ -114,10 +119,10 @@ export async function GET(request: Request, context: { params: Promise<{ provide
       if (!response.ok || result.status !== 'COMPLETE' || Number(result.total_amount) !== Number(order.amount)) throw new Error('eSewa payment is not confirmed.');
       transaction = String(result.ref_id || payload.transaction_code || order.id);
     }
-    const pass = await markPaid(order, transaction, request);
-    return redirect(order.product === 'exam_pass' && pass ? `${siteUrl('exam')}/?passCode=${encodeURIComponent(pass)}` : `${siteUrl('agency')}/?billing=success`);
+    await markPaid(order, transaction, request);
+    return redirect(paymentReturnUrl(order, 'success'));
   } catch (error) {
     console.error('Payment verification failed:', error instanceof Error ? error.message : 'unknown error');
-    return redirect(`${siteUrl(order.product === 'exam_pass' ? 'exam' : 'agency')}/?billing=failed`);
+    return redirect(paymentReturnUrl(order, 'failed'));
   }
 }

@@ -9,7 +9,17 @@ export const BRAND = {
     pass: 'https://chat.whatsapp.com/HXUt4bDRIXw7jXVaIA5Kmt',
     fail: 'https://chat.whatsapp.com/KTiZAbm0V2O1DDM9nxJTiA',
   },
-  contact: { email: 'learnwithsulav@gmail.com', phones: ['+9779857053594', '+9779847303594'] },
+  contact: {
+    email: 'info@sulavs.com.np',
+    emails: {
+      admin: 'admin@sulavs.com.np',
+      support: 'support@sulavs.com.np',
+      billing: 'billing@sulavs.com.np',
+      payment: 'payment@sulavs.com.np',
+      feedback: 'feedback@sulavs.com.np',
+    },
+    phones: ['+9779857053594', '+9779847303594'],
+  },
 };
 
 // Exam rules. Change here and both the portal and the grader follow.
@@ -30,4 +40,3 @@ export function siteUrl(site: SiteKey) {
   const root = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'sulavs.com.np').replace(/^www\./i, '');
   return site === 'root' ? `https://www.${root}` : `https://${site}.${root}`;
 }
-

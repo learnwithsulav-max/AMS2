@@ -4,6 +4,7 @@ import { Card, Btn, Field } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { jsPDF } from 'jspdf';
 import { BRAND } from '@/lib/brand';
+import { startGatewayCheckout, type GatewayProvider } from '@/lib/billing-checkout';
 
 const packages = [
   {
@@ -21,18 +22,31 @@ const packages = [
     features: ['Everything in Basic', 'Downline hierarchy & titles', 'Installment calendar & projections', 'Festival banner generator', 'Priority coaching support'],
     best: true,
   },
-];
+] as const;
 
 export function Billing() {
   const { session, profile } = useAuth();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [chosen, setChosen] = useState('agency_basic');
-  const [provider, setProvider] = useState('fonepay');
+  const [chosen, setChosen] = useState<'agency_basic' | 'agency_pro'>('agency_basic');
+  const [provider, setProvider] = useState<'fonepay' | 'nepalpay' | GatewayProvider>('fonepay');
   const [couponCode, setCouponCode] = useState('');
   const [pan, setPan] = useState(profile?.pan_number || '');
   const [quote, setQuote] = useState<any>(null);
   const [status, setStatus] = useState<any>(null);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const packageCode = url.searchParams.get('package');
+    if (packageCode === 'agency_basic' || packageCode === 'agency_pro') setChosen(packageCode);
+    const billing = url.searchParams.get('billing');
+    if (billing === 'success') setMessage('Payment confirmed. Your Agency access has been activated.');
+    if (billing === 'failed') setMessage('Payment could not be confirmed. Check your payment status or try again.');
+    if (billing) {
+      url.searchParams.delete('billing');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
 
   useEffect(() => {
     const id = localStorage.getItem('lws_agency_billing_order');
@@ -76,6 +90,29 @@ export function Billing() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (provider === 'esewa' || provider === 'khalti') {
+      if (!session?.access_token) {
+        setMessage('Sign in before starting checkout.');
+        return;
+      }
+      setBusy(true);
+      setMessage('');
+      try {
+        await startGatewayCheckout({
+          accessToken: session.access_token,
+          product: chosen,
+          packageCode: chosen,
+          provider,
+          couponCode,
+          onOrderCreated: (orderId) => localStorage.setItem('lws_agency_billing_order', orderId),
+        });
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : 'Could not start checkout. Please try again.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const file = (document.querySelector<HTMLInputElement>('#agency-voucher')?.files || [])[0];
     if (!file) {
       setMessage('Upload your payment voucher receipt first.');
@@ -189,6 +226,9 @@ export function Billing() {
       <header>
         <h1 className="text-3xl font-extrabold text-[#0A4F8A]">Agency Subscription & Billing</h1>
         <p className="mt-2 text-slate-600">{profile?.name} · Upgrade or renew your agency portal access.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Billing questions? <a className="font-semibold text-[#0A4F8A] underline" href={`mailto:${BRAND.contact.emails.billing}`}>{BRAND.contact.emails.billing}</a>
+        </p>
       </header>
 
       <Card className="p-4 bg-blue-50/50 border border-blue-200">
@@ -211,7 +251,7 @@ export function Billing() {
               chosen === p.code ? 'border-[#F15A24] ring-1 ring-[#F15A24]' : 'border-slate-200 hover:border-slate-300'
             }`}
           >
-            {p.best && (
+            {'best' in p && p.best && (
               <span className="absolute right-4 top-4 rounded-full bg-[#F15A24] px-2.5 py-1 text-xs font-bold text-white">
                 Best value
               </span>
@@ -231,16 +271,21 @@ export function Billing() {
       </div>
 
       <Card className="grid gap-4 p-6">
-        <h2 className="font-bold text-[#0A4F8A] text-lg">Pay by QR and Upload Voucher</h2>
+        <h2 className="font-bold text-[#0A4F8A] text-lg">Choose a payment method</h2>
         <p className="text-sm text-slate-600">
-          Pay the selected package fee using Fonepay or NepalPay. Upload a photo or screenshot of the transaction voucher.
+          Pay online with eSewa or Khalti, or choose a QR payment and upload its voucher for review.
+        </p>
+        <p className="text-xs text-slate-500">
+          For a payment or transaction issue, email <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.payment}`}>{BRAND.contact.emails.payment}</a>.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {[
-            ['fonepay', 'Fonepay', '/fonepay-qr.jpg'],
-            ['nepalpay', 'NepalPay', '/nepalpay-qr.png'],
-          ].map(([id, label, src]) => (
+          {([
+            ['fonepay', 'Fonepay QR', '/fonepay-qr.jpg'],
+            ['nepalpay', 'NepalPay QR', '/nepalpay-qr.png'],
+            ['esewa', 'eSewa', ''],
+            ['khalti', 'Khalti', ''],
+          ] as const).map(([id, label, src]) => (
             <label key={id} className="rounded-xl border p-4 text-center text-sm cursor-pointer hover:border-slate-400">
               <input
                 type="radio"
@@ -249,11 +294,18 @@ export function Billing() {
                 onChange={() => setProvider(id)}
               />{' '}
               <span className="font-semibold">{label}</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt={`${label} QR`} className="mx-auto mt-2 h-52 object-contain" />
+              {src && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt={`${label} QR`} className="mx-auto mt-2 h-52 object-contain" />
+              )}
             </label>
           ))}
         </div>
+        {(provider === 'esewa' || provider === 'khalti') && (
+          <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+            You will be redirected to {provider === 'esewa' ? 'eSewa' : 'Khalti'} to complete payment securely.
+          </p>
+        )}
 
         {!status && (
           <form onSubmit={submit} className="grid gap-4 mt-2">
@@ -285,13 +337,15 @@ export function Billing() {
               )}
             </div>
 
-            <label className="grid gap-1 text-sm font-medium">
-              Payment Voucher Screenshot (भौचर स्क्रिनसट)
-              <input id="agency-voucher" type="file" accept="image/jpeg,image/png,image/webp" required className="rounded-lg border p-2 text-sm" />
-            </label>
+            {(provider === 'fonepay' || provider === 'nepalpay') && (
+              <label className="grid gap-1 text-sm font-medium">
+                Payment Voucher Screenshot (भौचर स्क्रिनसट)
+                <input id="agency-voucher" type="file" accept="image/jpeg,image/png,image/webp" required className="rounded-lg border p-2 text-sm" />
+              </label>
+            )}
 
             <Btn disabled={busy || !session}>
-              {busy ? 'Submitting…' : `Submit ${chosen === 'agency_basic' ? 'Basic' : 'Pro'} Voucher`}
+              {busy ? 'Please wait…' : provider === 'esewa' || provider === 'khalti' ? 'Continue to payment' : `Submit ${chosen === 'agency_basic' ? 'Basic' : 'Pro'} Voucher`}
             </Btn>
           </form>
         )}

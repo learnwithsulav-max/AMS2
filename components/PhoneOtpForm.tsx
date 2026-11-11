@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { BRAND } from '@/lib/brand';
 import { Btn, Field } from './ui';
 
 type PhoneOtpFormProps = {
@@ -17,6 +18,7 @@ function normalizeNepalPhone(value: string) {
 
 export function PhoneOtpForm({ portal, name = '' }: PhoneOtpFormProps) {
   const [phone, setPhone] = useState('');
+  const [displayName, setDisplayName] = useState(name);
   const [channel, setChannel] = useState<'sms' | 'whatsapp'>('sms');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState('');
@@ -38,7 +40,11 @@ export function PhoneOtpForm({ portal, name = '' }: PhoneOtpFormProps) {
           phone: normalizedPhone,
           options: {
             channel,
-            data: { name, portal_type: portal === 'exam' ? 'exam_candidate' : 'agent' },
+            data: {
+              name: name.trim() || displayName.trim(),
+              phone: normalizedPhone,
+              portal_type: portal === 'exam' ? 'exam_candidate' : 'agent',
+            },
           },
         });
         if (error) throw error;
@@ -46,6 +52,8 @@ export function PhoneOtpForm({ portal, name = '' }: PhoneOtpFormProps) {
         setMessage(`A verification code was requested for ${normalizedPhone} by ${channel === 'sms' ? 'SMS' : 'WhatsApp'}.`);
         return;
       }
+
+      if (!/^\d{6}$/.test(code)) throw new Error('Enter the 6-digit verification code.');
 
       const { error } = await supabase.auth.verifyOtp({
         phone: sentTo,
@@ -80,6 +88,15 @@ export function PhoneOtpForm({ portal, name = '' }: PhoneOtpFormProps) {
     <form onSubmit={submit} className="grid gap-4">
       {!sentTo && (
         <>
+          {!name && (
+            <Field
+              label="Full name (optional for a new account)"
+              autoComplete="name"
+              maxLength={100}
+              value={displayName}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDisplayName(event.target.value)}
+            />
+          )}
           <Field
             label="Nepali mobile number"
             type="tel"
@@ -120,6 +137,9 @@ export function PhoneOtpForm({ portal, name = '' }: PhoneOtpFormProps) {
           Change phone number or delivery method
         </button>
       )}
+      <p className="text-xs text-slate-500">
+        Need help signing in? <a className="font-semibold underline" href={`mailto:${BRAND.contact.emails.support}`}>Contact support</a>.
+      </p>
     </form>
   );
 }

@@ -50,13 +50,25 @@ the application directory so workspace-level lockfiles are not mistaken for its 
 11. **Cloudflare**: your CNAME records already point to Vercel. If a page shows a redirect loop, set the records to
    "DNS only" (grey cloud) or set SSL/TLS mode to Full (strict).
 12. **First admin**: create the admin user in Supabase Authentication > Users, then run in the SQL Editor:
-   `update profiles set role = 'admin', membership = 'premium' where email = 'learnwithsulav@gmail.com';`
+   `update profiles set role = 'admin', membership = 'premium' where email = 'admin@sulavs.com.np';`
    Set the account password in Supabase; never put it in source code, `.env` files, or Git. Admin data and
    mutations are served through authenticated server routes; keep `SUPABASE_SERVICE_ROLE_KEY` server-only.
 
 ## Existing AMS database update
 
 For a new Supabase project, run `supabase/schema.sql` as above, then apply the remaining files in `supabase/migrations` in filename order. For an already-running AMS database, run `supabase/upgrade-portfolios-exam-passes.sql` once, then apply any unapplied migration files in `supabase/migrations` in filename order before deploying. The exam-access migration links passes and attempts to candidate accounts, and adds the email/WhatsApp notification queue. Paid exam access requires a signed-in candidate and a paid, approved pass; configure pass pricing and payment instructions in Admin > Exam passes.
+
+## Automatic deployment
+
+Connect the `learnwithsulav-max/AMS2` GitHub repository to the Vercel project, use the repository root as the project root, and select `main` as the production branch. Vercel's Git integration then creates Preview deployments for other branch pushes and Production deployments for pushes to `main`. Configure the app's environment variables in Vercel; do not commit `.env.local`.
+
+The `Deploy Supabase migrations` GitHub Actions workflow applies committed migrations under `supabase/migrations/` to the production Supabase project after a push to `main`. To enable it, add these encrypted repository secrets in GitHub > Settings > Secrets and variables > Actions:
+
+- `SUPABASE_ACCESS_TOKEN`: a scoped Supabase access token with `projects_read`, `database_write`, and `branching_production_read` permissions.
+- `SUPABASE_DB_PASSWORD`: the database password for the production project.
+- `SUPABASE_PROJECT_ID`: the project reference from the Supabase dashboard URL.
+
+The workflow first lists the remote migration history and runs a dry run, then applies pending migrations. It skips deployment with a notice until all three secrets exist. Before enabling it for an existing database, confirm the remote migration history matches the repository's existing migrations; do not use this workflow to baseline or repair an unknown production history. This workflow deploys database migrations only: Supabase Auth providers, redirect URLs, project secrets, and mailbox setup still require their respective dashboard configuration.
 
 For email/SMS/WhatsApp delivery, configure the Resend and Twilio values above as needed. SMS is limited to Supabase phone OTP and payment confirmations. WhatsApp requires Meta Cloud API credentials and an approved template with one body-text variable (`{{1}}`); set `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE` and `WHATSAPP_API_VERSION` in the deployment environment. WhatsApp is queued only for users who opted in, and email remains the default for notifications.
 
